@@ -26,7 +26,7 @@ function Dashboard({ code }) {
     }
 
     const spotifyApi = new SpotifyWebApi({
-        clientId: '63aa93f61f7b42509d332eac7fc63f13',
+        clientId: process.env.REACT_APP_ClientID,
         accessToken: accessTokenz,
     });
 
