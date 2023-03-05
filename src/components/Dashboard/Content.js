@@ -8,7 +8,7 @@ import UserPlaylist from './UserPlaylist';
 import SongCard from '../SongCard';
 import AddPlaylist from './AddPlaylist';
 import './content.css';
-import { trySpotifyAPI } from '../../api/api';
+// import { trySpotifyAPI } from '../../api/api';
 
 function Content({spotifyApi}) {
 console.log('api token',spotifyApi);
@@ -50,6 +50,7 @@ console.log('api token',spotifyApi);
     );
 
     dispatch(setIsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   const { userLibrary } = useSelector((state) => state.userLibrary);

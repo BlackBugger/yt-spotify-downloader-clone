@@ -1,5 +1,3 @@
-import { useDispatch } from 'react-redux';
-import { setIsLoading } from '../redux/reducers';
 import './Auth.css';
 
 const AUTH_URL =

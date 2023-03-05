@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React from 'react'
 import { useEffect } from "react";
 import "./Home.css";
@@ -5,8 +6,6 @@ import { useSelector, useDispatch } from "react-redux";
 import { setSearchInput, setTrack } from '../redux/reducers';
 import { search } from '../components/Search';
 import Auth from '../components/Auth';
-
-import { spotifyAccessToken } from '../api/SpotifyAccessToken';
 import useAuth from "../useAuth";
 import Player from '../components/Player';
 import Content from '../components/Dashboard/Content';

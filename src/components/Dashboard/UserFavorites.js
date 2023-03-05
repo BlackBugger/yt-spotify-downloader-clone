@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import Button from 'react-bootstrap/Button';
+import React from 'react';
 import Modal from 'react-bootstrap/Modal';
 import { useDispatch, useSelector } from 'react-redux';
-import SpotifyWebApi from 'spotify-web-api-node';
-import { setShow, setUserLibrary } from '../../redux/reducers';
+// import SpotifyWebApi from 'spotify-web-api-node';
+import { setShow } from '../../redux/reducers';
 import { store } from '../../redux/store';
 import UserTopTracks from '../UserTopTracks';
 import classes from './UserFavorites.module.css';

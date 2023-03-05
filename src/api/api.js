@@ -1,5 +1,4 @@
 import axios from "axios";
-import { useSelector } from "react-redux";
 import SpotifyWebApi from "spotify-web-api-node";
 import { store } from "../redux/store";
 
@@ -7,8 +6,8 @@ export const yTdApi = axios.create({
   baseURL: "https://youtube-mp36.p.rapidapi.com/",
   Accept: "application/json",
   headers: {
-    'X-RapidAPI-Key': "49d4ef8e46msh29fbf3e305cf6d1p16d62bjsn319df009fdc8",
-    'X-RapidAPI-Host': "youtube-mp36.p.rapidapi.com"
+    'X-RapidAPI-Key': process.env.API_KEY,
+    'X-RapidAPI-Host': process.env.API_HOST
   },
 });
 export const ytApi = axios.create({
