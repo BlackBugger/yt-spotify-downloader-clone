@@ -2,8 +2,6 @@
 import { setTrack } from '../redux/reducers';
 import { store } from '../redux/store';
 import SpotifyWebApi from 'spotify-web-api-node';
-import { useEffect } from 'react';
-
 
 
 export const search = async (dispatch) => {

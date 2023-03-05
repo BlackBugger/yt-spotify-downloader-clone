@@ -6,8 +6,8 @@ export const yTdApi = axios.create({
   baseURL: "https://youtube-mp36.p.rapidapi.com/",
   Accept: "application/json",
   headers: {
-    'X-RapidAPI-Key': process.env.API_KEY,
-    'X-RapidAPI-Host': process.env.API_HOST
+    'X-RapidAPI-Key': process.env.REACT_APP_API_KEY,
+    'X-RapidAPI-Host': process.env.REACT_APP_API_HOST
   },
 });
 export const ytApi = axios.create({

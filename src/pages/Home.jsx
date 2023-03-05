@@ -31,6 +31,7 @@ export default function Home() {
 
   return (
     <div className="app">
+   
       <div className='header'>
         <form onSubmit={submit} className="search">
           <input
