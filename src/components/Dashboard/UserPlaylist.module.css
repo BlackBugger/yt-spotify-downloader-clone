@@ -1,0 +1,128 @@
+
+.playlistimage img {
+    width: 100%;
+    position: absolute;
+    left: 0;
+}
+
+.playlistcard {
+    display: flex;
+    border-radius: 10px;
+    background-color: gray;
+    overflow: hidden;
+    box-shadow: 5px 5px 7px #1b1b1b;
+    min-height: 300px;
+    width: 100%;
+}
+
+.contentcard {
+    display: flex;
+    border-radius: 10px;
+    background-color: gray;
+    overflow: hidden;
+    box-shadow: 5px 5px 7px #1b1b1b;
+    height: 100%;
+    width: 100%;
+}
+
+.cardfront {
+
+    border-radius: 10px;
+    background-color: gray;
+    overflow: hidden;
+    box-shadow: -6px 0px 10px #1b1b1b;
+    height: 100%;
+    width: 100%;
+    transition: width 0.5s ease-in-out;
+ position: relative;
+  
+}
+
+.test {
+    width: 0;
+    overflow: hidden;
+    overflow-y: auto;
+    height: 100%;
+    transition: width 0.5s ease-in-out;
+    
+}
+
+.collage{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 700px;
+    flex-wrap: wrap;
+    filter: blur(1.5px); 
+    transition:  filter 1s ease, margin-left 1s ease;  
+}
+.collage>* {
+    flex: 1 1 100px;
+}
+
+.contentcard:hover .collage {
+    filter: blur(0);
+     
+}
+.contentcard:hover .frontimage {
+ transform: scale(1.2);
+
+}
+
+.frontimage{
+    
+  height: 100px;
+    transition: transform 1s ease;
+}
+.frontimage img{
+ height: 100%;
+ width: 100%;
+}
+
+.contentcard:hover .test {
+    width: 45%;
+    overflow: hidden;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.contentcard:hover .cardfront {
+    width: 55%;
+}
+
+
+.title {
+    position: absolute;
+   right: 0;
+    padding: 1rem;
+    z-index: 1;
+    text-transform: uppercase;
+    color: white;
+ 
+}
+
+.title span {
+    font-weight: 800;
+    font-size: 70px;
+    line-height: 50px;
+    text-shadow: 1px 7px 10px rgba(43, 43, 43, 0.9);
+    cursor: default;
+
+    transition: margin 0.6s ease-in-out;
+}
+
+.title span:last-child {
+    margin-right: 0.2rem;
+}
+
+.title span:nth-child(4) {
+    margin-left: -0.15em;
+}
+
+.contentcard:hover .title span {
+    margin-left: -0.2em;
+}
+
+.contentcard:hover .title span:last-child {
+    margin-right: 0.7rem;
+}

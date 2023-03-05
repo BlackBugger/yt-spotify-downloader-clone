@@ -1,0 +1,19 @@
+.login {
+    width: 60px;
+    height: 60px;
+    background-color: none;
+
+  
+    border-radius: 50%;
+    box-shadow: 5px 5px 10px #1c1d1f;
+}
+
+.login-img {
+    width: 60px;
+    height: 60px;
+}
+
+.btn {
+    background: none;
+
+}

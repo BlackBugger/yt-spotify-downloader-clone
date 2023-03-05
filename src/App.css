@@ -1,38 +1,125 @@
-.App {
-  text-align: center;
+@import url("https://fonts.googleapis.com/css?family=Roboto+Slab:100,300,400,700");
+@import url("https://fonts.googleapis.com/css?family=Raleway:300,300i,400,400i,500,500i,600,600i,700,700i,800,800i,900,900i");
+
+* {
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+:root {
+  --font-roboto: "Roboto Slab", serif;
+  --font-raleway: "Raleway", sans-serif;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+body {
+  font-family: var(--font-roboto);
+  background-color: #949494;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.player {
+  width: 100%;
+  position: fixed;
+  left: 0;
+  bottom: 0;
+}
+
+.header {
+  width: 100%;
+}
+
+.search {
+  width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
+  top: 0;
+  border-radius: 10px;
+  padding: 5px;
+  padding-inline: 20px;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  background: #1f2123;
+  box-shadow: 5px 5px 7px #1c1d1f;
 }
 
-.App-link {
-  color: #61dafb;
+.search input {
+  flex: 1;
+  border: none;
+  font-size: 1.5rem;
+  font-family: var(--font-raleway);
+  font-weight: 500;
+  padding-right: 1rem;
+width: 100%;
+  outline: none;
+  color: #a1a1a1;
+  background: #1f2123;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #1f2123 inset !important;
+  -webkit-text-fill-color: #a1a1a1;
+
+}
+
+.search button {
+  padding: 10px 0px;
+  border-radius: 0.5rem;
+  color: #a1a1a1;
+  font-family: var(--font-raleway);
+  font-weight: 900;
+  letter-spacing: 0.75px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  /* temporary */
+
+  background: transparent;
+
+}
+
+
+
+
+
+/* 
+
+@media screen and (max-width: 600px) {
+  .app {
+    padding: 4rem 2rem;
   }
-  to {
-    transform: rotate(360deg);
+
+  .search {
+    padding: 1rem 1.75rem;
+    width: 100%;
+  }
+
+  .search input {
+    font-size: 1rem;
+  }
+
+  .search img {
+    width: 20px;
+    height: 20px;
   }
 }
+
+@media screen and (max-width: 400px) {
+  .app {
+    padding: 4rem 1rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  .container {
+    margin-top: 2rem;
+  }
+
+  .movie {
+    width: "100%";
+    margin: 1rem;
+  }
+} */
