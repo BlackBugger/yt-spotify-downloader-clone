@@ -34,7 +34,7 @@ const SongCard = (track) => {
 
         const trackName = searchYT;
 
-        const KEY = 'AIzaSyAbv5Y7iVusXiGKv75mru5G_Y4jNZUTtPY';
+        const KEY = process.env.REACT_APP_YOUTUBE_API_KEY;
 
         const fetchAPI = await fetch(`https://youtube.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=` + trackName + "&key=" + KEY, {
         })
@@ -63,7 +63,7 @@ const SongCard = (track) => {
 
         const trackName = searchYT;
 
-        const KEY = 'AIzaSyAbv5Y7iVusXiGKv75mru5G_Y4jNZUTtPY';
+        const KEY = process.env.REACT_APP_YOUTUBE_API_KEY;
 
         const fetchAPI = await fetch(`https://youtube.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=` + trackName + "&key=" + KEY, {
 
