@@ -31,6 +31,20 @@ test("constructs a callback only from a trusted deployment origin", () => {
   }
 });
 
+test("constructs a deploy-preview callback from trusted Netlify metadata", () => {
+  process.env.CONTEXT = "deploy-preview";
+  process.env.REVIEW_ID = "1";
+  process.env.SITE_NAME = "cruz-yt-mp3";
+  try {
+    expect(buildCallbackUrl({ headers: { host: "deploy-preview-1--cruz-yt-mp3.netlify.app", "x-forwarded-proto": "https" } })).toBe("https://deploy-preview-1--cruz-yt-mp3.netlify.app/.netlify/functions/spotify-callback");
+    expect(() => buildCallbackUrl({ headers: { host: "attacker.example.net", "x-forwarded-proto": "https" } })).toThrow("Untrusted callback origin");
+  } finally {
+    delete process.env.CONTEXT;
+    delete process.env.REVIEW_ID;
+    delete process.env.SITE_NAME;
+  }
+});
+
 test("creates a secure httpOnly refresh cookie and validates oauth state", () => {
   const cookie = createSessionCookie("refresh-token");
   expect(cookie).toMatch(/HttpOnly/);

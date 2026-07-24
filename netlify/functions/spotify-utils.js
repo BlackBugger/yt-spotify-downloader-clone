@@ -120,7 +120,12 @@ function buildCallbackUrl(event) {
   const proto = (headers["x-forwarded-proto"] || headers["X-Forwarded-Proto"] || "https").split(",")[0].trim().toLowerCase();
   if (proto !== "https" && proto !== "http") throw new Error("Invalid protocol.");
   const origin = trustedOrigin(`${proto}://${host}`);
-  const configured = [process.env.URL, process.env.DEPLOY_URL, process.env.DEPLOY_PRIME_URL, ...(process.env.SPOTIFY_ALLOWED_ORIGINS || "").split(",")]
+  const previewOrigin = process.env.CONTEXT === "deploy-preview"
+    && /^\d+$/.test(process.env.REVIEW_ID || "")
+    && /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(process.env.SITE_NAME || "")
+    ? `https://deploy-preview-${process.env.REVIEW_ID}--${process.env.SITE_NAME}.netlify.app`
+    : "";
+  const configured = [process.env.URL, process.env.DEPLOY_URL, process.env.DEPLOY_PRIME_URL, previewOrigin, ...(process.env.SPOTIFY_ALLOWED_ORIGINS || "").split(",")]
     .map((value) => trustedOrigin((value || "").trim()))
     .filter(Boolean);
   const local = origin && (new URL(origin).hostname === "localhost" || new URL(origin).hostname === "127.0.0.1");
