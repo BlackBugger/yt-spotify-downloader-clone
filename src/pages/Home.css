@@ -1,6 +1,6 @@
 .home-page {
   --ink: #f7f5f2;
-  --muted: #a5a3ad;
+  --muted: #c0bec8;
   --panel: rgba(19, 19, 25, 0.78);
   --line: rgba(255, 255, 255, 0.1);
   --accent: #ff6654;
@@ -12,6 +12,11 @@
     radial-gradient(circle at 50% 5%, rgba(111, 71, 255, 0.12), transparent 28rem),
     linear-gradient(180deg, #090a0f 0%, #0c0c12 70%, #09090d 100%);
   color: var(--ink);
+}
+
+.home-page button,
+.home-page input {
+  font: inherit;
 }
 
 .home-page::before {
@@ -98,7 +103,7 @@
 
 .brand-divider,
 .brand-product {
-  color: #6f6d76;
+  color: #918f99;
 }
 
 .brand-product {
@@ -263,7 +268,7 @@
 }
 
 .search-icon {
-  color: #6f6d78;
+  color: #8f8c97;
   font-size: 20px;
 }
 
@@ -277,7 +282,7 @@
 }
 
 .search-control input::placeholder {
-  color: #5e5c67;
+  color: #8f8c97;
 }
 
 .search-control input::-webkit-search-cancel-button {
@@ -293,7 +298,7 @@
   min-height: 47px;
   padding: 0 20px;
   border-radius: 10px;
-  background: linear-gradient(120deg, #ff715e, #ff574a);
+  background: linear-gradient(120deg, #b83228, #b52f26);
   box-shadow: 0 10px 28px rgba(255, 87, 74, 0.18);
   color: #fff;
   cursor: pointer;
@@ -326,7 +331,7 @@
 .search-message {
   min-height: 19px;
   margin: 10px 2px 0;
-  color: #6f6d78;
+  color: #8f8c97;
   font-size: 12px;
 }
 
@@ -344,7 +349,7 @@
 
 .popular-searches > span {
   flex: none;
-  color: #676570;
+  color: #918f99;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -390,7 +395,7 @@
   display: inline-flex;
   gap: 7px;
   align-items: center;
-  color: #77747f;
+  color: #bcb9c4;
   font-size: 12px;
 }
 
@@ -492,7 +497,7 @@
 .steps-grid p {
   max-width: 280px;
   margin: 0;
-  color: #7f7c87;
+  color: #9c99a4;
   font-size: 14px;
   line-height: 1.65;
 }
@@ -524,7 +529,7 @@
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 99px;
-  color: #8c8994;
+  color: #9c99a4;
   font-size: 12px;
 }
 
@@ -557,7 +562,7 @@
 
 .no-results p {
   margin: 0;
-  color: #77747f;
+  color: #9c99a4;
   font-size: 14px;
 }
 
@@ -627,11 +632,11 @@
   margin: 0 auto;
   padding: 28px 0 36px;
   border-top: 1px solid var(--line);
-  color: #5f5d67;
+  color: #b4b1bd;
 }
 
 .footer-brand {
-  color: #a19ea8;
+  color: #d0cdd7;
   font-family: var(--font-display);
   font-size: 12px;
   font-weight: 800;
@@ -667,11 +672,79 @@
   }
 }
 
+.header-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.account-notice {
+  position: relative;
+  z-index: 2;
+  width: min(1180px, calc(100% - 48px));
+  margin: 16px auto 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 146, 127, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 102, 84, 0.1);
+  color: #ffd2ca;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.header-button,
+.library-tabs button,
+.now-playing button {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1eff4;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 11px;
+}
+
+.header-button.connect { background: linear-gradient(120deg, #b83228, #6b55c7); border: 0; }
+.header-avatar, .profile-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.profile-name { max-width: 12rem; overflow: hidden; color: #e2dfe7; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.library-heading { display: flex; gap: 14px; align-items: center; }
+.profile-avatar { width: 48px; height: 48px; }
+.library-panel { width: min(1180px, calc(100% - 48px)); margin: 0 auto 26px; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: rgba(17, 17, 23, 0.78); }
+.library-panel h2 { margin: 0; font-family: var(--font-display); }
+.library-panel p { color: #c0bec8; }
+.library-tabs { display: flex; gap: 8px; margin: 20px 0; }
+.library-tabs button[aria-pressed="true"] { background: rgba(255, 113, 94, 0.22); border-color: #ff927f; }
+.library-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.library-card { display: flex; gap: 10px; align-items: center; min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.025); }
+.library-card img, .library-art-placeholder { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: #2a2932; }
+.library-card div { min-width: 0; }
+.library-card strong, .library-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-card span, .library-empty { color: #c0bec8; font-size: 12px; }
+.now-playing { position: fixed; z-index: 4; right: 18px; bottom: 18px; display: grid; gap: 4px; max-width: 340px; padding: 14px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 14px; background: #17171e; box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+.now-playing-status { display: grid; gap: 4px; min-width: 0; }
+.now-playing-status strong, .now-playing-status span { overflow-wrap: anywhere; }
+.now-playing span, .now-playing small { color: #c0bec8; font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
 @media (max-width: 780px) {
   .site-header,
   .content-section,
-  .home-page footer {
+  .home-page footer,
+  .account-notice {
     width: min(100% - 32px, 1180px);
+  }
+
+  .profile-name {
+    display: none;
+  }
+
+  .now-playing {
+    position: static;
+    width: min(100% - 32px, 1180px);
+    max-width: none;
+    margin: 0 auto 18px;
   }
 
   .hero {
@@ -751,13 +824,34 @@
     height: 72px;
   }
 
+  .header-controls {
+    gap: 6px;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  .header-avatar {
+    display: none;
+  }
+
+  .header-button {
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
   .brand-divider,
   .brand-product {
     display: none;
   }
 
   .catalog-status {
+    gap: 4px;
     font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .catalog-prefix {
+    display: none;
   }
 
   .hero {
@@ -803,4 +897,3 @@
     transition-duration: 0.01ms !important;
   }
 }
-

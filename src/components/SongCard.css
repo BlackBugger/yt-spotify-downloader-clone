@@ -67,15 +67,19 @@
 .track-copy span {
   display: block;
   margin-top: 2px;
-  color: #5f5d67;
+  color: #9c99a4;
   font-size: 11px;
 }
 
 .track-copy small {
   display: block;
   margin-top: 5px;
-  color: #ff9c8f;
+  overflow: visible;
+  color: #ffb0a5;
   font-size: 11px;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .track-actions {
@@ -112,9 +116,14 @@
 }
 
 .track-action.secondary {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: #c5c2cb;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.055);
+  color: #dfdce5;
+}
+
+.icon-action {
+  min-width: 42px;
+  padding: 0;
 }
 
 .track-action.secondary:hover:not(:disabled) {
@@ -147,11 +156,21 @@
   }
 
   .track-actions {
+    display: grid;
     grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
     width: 100%;
   }
 
+  .track-actions.connected {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .track-action {
-    flex: 1;
+    width: 100%;
+    min-width: 0;
+    padding: 0 7px;
+    gap: 4px;
   }
 }

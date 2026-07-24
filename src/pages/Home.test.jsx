@@ -1,0 +1,414 @@
+import "@testing-library/jest-dom";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import Home from "./Home";
+
+jest.mock("../hooks/useSpotifyPlayer", () => ({
+  useSpotifyPlayer: () => ({
+    deviceId: "",
+    error: "",
+    playerState: null,
+    isPlaying: false,
+    togglePlay: jest.fn(),
+    activateElement: jest.fn(() => Promise.resolve()),
+  }),
+}));
+
+const unauthenticated = { ok: true, json: async () => ({ authenticated: false }) };
+const tracks = Array.from({ length: 12 }, (_, index) => ({
+  id: `track-${index}`,
+  name: `Track ${index + 1}`,
+  artists: [{ name: "Artist" }],
+  album: { name: "Album", images: [] },
+  uri: `spotify:track:${index}`,
+}));
+const originalConsoleError = console.error;
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
+  return { promise, reject, resolve };
+}
+
+beforeEach(() => {
+  jest.spyOn(console, "error").mockImplementation((message, ...args) => {
+    if (String(message).includes("not wrapped in act")) throw new Error("React act warning");
+    originalConsoleError(message, ...args);
+  });
+  global.fetch = jest.fn(() => Promise.resolve(unauthenticated));
+  window.history.replaceState({}, "", "/");
+});
+
+afterEach(() => jest.restoreAllMocks());
+
+test("validates an empty public search without a catalog request", async () => {
+  await act(async () => { render(<Home />); await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Enter a song");
+  expect(fetch).toHaveBeenCalledWith("/.netlify/functions/spotify-session", undefined);
+});
+
+test("searches the public Netlify catalog function and renders twelve results", async () => {
+  fetch.mockResolvedValueOnce(unauthenticated).mockResolvedValueOnce({ ok: true, json: async () => ({ tracks }) });
+  render(<Home />);
+  fireEvent.change(screen.getByLabelText(/what do you want to hear/i), { target: { value: "SZA" } });
+  fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
+  await screen.findByText('Matches for “SZA”');
+  expect(fetch).toHaveBeenCalledWith("/.netlify/functions/catalog-search?q=SZA", undefined);
+  expect(screen.getAllByRole("article")).toHaveLength(12);
+  expect(screen.getByRole("status", { name: /search status/i })).toHaveTextContent("12 tracks found");
+});
+
+test("reports a public search error in its dedicated status region", async () => {
+  fetch.mockResolvedValueOnce(unauthenticated).mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Catalog is unavailable." }) });
+  render(<Home />);
+  fireEvent.change(screen.getByLabelText(/what do you want to hear/i), { target: { value: "SZA" } });
+  fireEvent.submit(screen.getByRole("button", { name: /find tracks/i }).closest("form"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Catalog is unavailable.");
+  expect(screen.queryByRole("region", { name: /search results/i })).not.toHaveAttribute("aria-live");
+});
+
+test("starts in public mode when the page has an OAuth code query", async () => {
+  window.history.replaceState({}, "", "/?code=untrusted");
+  await act(async () => { render(<Home />); await Promise.resolve(); });
+  expect(screen.getByRole("button", { name: /connect spotify/i })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /your next listen/i })).toBeInTheDocument();
+});
+
+test("does not store session access tokens in browser storage", async () => {
+  const storageSpy = jest.spyOn(Storage.prototype, "setItem");
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "short-lived", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+  render(<Home />);
+  expect(await screen.findByText("Cruz")).toBeInTheDocument();
+  await screen.findByText("No playlists to show yet.");
+  expect(storageSpy).not.toHaveBeenCalled();
+});
+
+test("uses dedicated busy and live semantics instead of a broad results live region", async () => {
+  await act(async () => { render(<Home />); await Promise.resolve(); });
+  expect(screen.getByRole("region", { name: /search results/i })).toHaveAttribute("aria-busy", "false");
+  expect(screen.getByRole("status", { name: /catalog status/i })).toBeInTheDocument();
+});
+
+test("preserves the complete public how-it-works guidance", async () => {
+  await act(async () => { render(<Home />); await Promise.resolve(); });
+  expect(screen.getByRole("heading", { name: "Find your track" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Check the match" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Save for later" })).toBeInTheDocument();
+});
+
+test("loads playlists automatically after Spotify login", async () => {
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          authenticated: true,
+          accessToken: "short-lived",
+          expiresIn: 3600,
+          profile: { display_name: "Cruz", images: [] },
+        }),
+      });
+    }
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ items: [{ id: "playlist-1", name: "Road Trip", images: [], owner: { display_name: "Harold" } }] }),
+      });
+    }
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+
+  expect(await screen.findByText("Road Trip")).toBeInTheDocument();
+  expect(screen.getByText("Harold")).toBeInTheDocument();
+});
+
+test("shows playback connection notices visibly", async () => {
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "short-lived", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    if (url === "/.netlify/functions/catalog-search?q=SZA") return Promise.resolve({ ok: true, json: async () => ({ tracks: [tracks[0]] }) });
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) return Promise.resolve({ ok: true, json: async () => [false] });
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("No playlists to show yet.");
+  fireEvent.change(screen.getByLabelText(/what do you want to hear/i), { target: { value: "SZA" } });
+  fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
+  await screen.findByText("Track 1");
+  expect(screen.getByText("1 track")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Play Track 1" }));
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("connecting a Spotify device");
+  expect(alert).not.toHaveClass("sr-only");
+});
+
+test("rolls back a failed heart action and shows the error visibly", async () => {
+  fetch.mockImplementation((url, options = {}) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "short-lived", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    if (url === "/.netlify/functions/catalog-search?q=SZA") return Promise.resolve({ ok: true, json: async () => ({ tracks: [tracks[0]] }) });
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) return Promise.resolve({ ok: true, json: async () => [false] });
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks?ids=") && options.method === "PUT") return Promise.resolve({ ok: false, json: async () => ({}) });
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("No playlists to show yet.");
+  fireEvent.change(screen.getByLabelText(/what do you want to hear/i), { target: { value: "SZA" } });
+  fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
+  await screen.findByText("Track 1");
+  fireEvent.click(screen.getByRole("button", { name: "Save Track 1" }));
+
+  expect(await screen.findByRole("button", { name: "Save Track 1" })).toBeInTheDocument();
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Could not save Track 1");
+  expect(alert).not.toHaveClass("sr-only");
+});
+
+test("clears an expired authenticated session", async () => {
+  jest.useFakeTimers();
+  try {
+    let sessionCalls = 0;
+    fetch.mockImplementation((url) => {
+      if (url === "/.netlify/functions/spotify-session") {
+        sessionCalls += 1;
+        return Promise.resolve({ ok: sessionCalls === 1, status: sessionCalls === 1 ? 200 : 401, json: async () => sessionCalls === 1
+          ? { authenticated: true, accessToken: "first", expiresIn: 31, profile: { display_name: "Cruz", images: [] } }
+          : { authenticated: false } });
+      }
+      if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+
+    render(<Home />);
+    expect(await screen.findByText("Cruz")).toBeInTheDocument();
+    await screen.findByText("No playlists to show yet.");
+
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByRole("button", { name: /connect spotify/i })).toBeInTheDocument();
+    expect(screen.queryByText("Cruz")).not.toBeInTheDocument();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test("refreshes the in-memory session token before expiry without browser storage", async () => {
+  jest.useFakeTimers();
+  try {
+    let sessionCalls = 0;
+    let playlistCalls = 0;
+    fetch.mockImplementation((url) => {
+      if (url === "/.netlify/functions/spotify-session") {
+        sessionCalls += 1;
+        return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: sessionCalls === 1 ? "first" : "second", expiresIn: 90, profile: { display_name: "Cruz", images: [] } }) });
+      }
+      if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
+        playlistCalls += 1;
+        return Promise.resolve({ ok: true, json: async () => ({ items: playlistCalls === 1 ? [] : [{ id: "refreshed-playlist", name: "Refreshed Playlist", images: [], owner: { display_name: "Harold" } }] }) });
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+    render(<Home />);
+    await screen.findByText("Cruz");
+    await screen.findByText("No playlists to show yet.");
+    await act(async () => {
+      jest.advanceTimersByTime(60000);
+      await Promise.resolve();
+    });
+    expect(fetch.mock.calls.filter(([url]) => url === "/.netlify/functions/spotify-session")).toHaveLength(2);
+    expect(await screen.findByText("Refreshed Playlist")).toBeInTheDocument();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test("ignores an in-flight session refresh that resolves after logout", async () => {
+  jest.useFakeTimers();
+  try {
+    const pendingRefresh = deferred();
+    let sessionCalls = 0;
+    fetch.mockImplementation((url) => {
+      if (url === "/.netlify/functions/spotify-session") {
+        sessionCalls += 1;
+        if (sessionCalls === 1) return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "first", expiresIn: 31, profile: { display_name: "Cruz", images: [] } }) });
+        return pendingRefresh.promise;
+      }
+      if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+      if (url === "/.netlify/functions/spotify-logout") return Promise.resolve({ ok: true, json: async () => ({ authenticated: false }) });
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+
+    render(<Home />);
+    await screen.findByText("Cruz");
+    await screen.findByText("No playlists to show yet.");
+    await act(async () => { jest.advanceTimersByTime(1000); await Promise.resolve(); });
+    expect(sessionCalls).toBe(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(await screen.findByRole("button", { name: /connect spotify/i })).toBeInTheDocument();
+
+    await act(async () => {
+      pendingRefresh.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "stale", expiresIn: 3600, profile: { display_name: "Stale Account", images: [] } }) });
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("button", { name: /connect spotify/i })).toBeInTheDocument();
+    expect(screen.queryByText("Stale Account")).not.toBeInTheDocument();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test("keeps the authenticated UI when server logout fails", async () => {
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "first", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    if (url === "/.netlify/functions/spotify-logout") return Promise.resolve({ ok: false, status: 503, json: async () => ({ error: "Logout unavailable." }) });
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("No playlists to show yet.");
+  fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+  await waitFor(() => expect(screen.getByText("Cruz")).toBeInTheDocument());
+  expect(screen.queryByRole("button", { name: /connect spotify/i })).not.toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Logout unavailable");
+});
+
+test("keeps the newest library tab when an older request resolves late", async () => {
+  const albumsResponse = deferred();
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "first", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    if (url === "https://api.spotify.com/v1/me/albums?limit=20") return albumsResponse.promise;
+    if (url === "https://api.spotify.com/v1/me/tracks?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [{ track: { id: "saved-1", name: "Newest Saved Track", artists: [{ name: "Artist" }], album: { images: [] } } }] }) });
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("No playlists to show yet.");
+  fireEvent.click(screen.getByRole("button", { name: "Albums" }));
+  fireEvent.click(screen.getByRole("button", { name: "Saved Tracks" }));
+  expect(await screen.findByText("Newest Saved Track")).toBeInTheDocument();
+
+  await act(async () => {
+    albumsResponse.resolve({ ok: true, json: async () => ({ items: [{ album: { id: "album-1", name: "Stale Album", artists: [{ name: "Artist" }], images: [] } }] }) });
+    await Promise.resolve();
+  });
+  expect(screen.getByText("Newest Saved Track")).toBeInTheDocument();
+  expect(screen.queryByText("Stale Album")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Saved Tracks" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("preserves the selected library tab across access-token refresh", async () => {
+  jest.useFakeTimers();
+  try {
+    let sessionCalls = 0;
+    let albumCalls = 0;
+    fetch.mockImplementation((url, options = {}) => {
+      if (url === "/.netlify/functions/spotify-session") {
+        sessionCalls += 1;
+        return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: sessionCalls === 1 ? "first" : "second", expiresIn: sessionCalls === 1 ? 31 : 3600, profile: { display_name: "Cruz", images: [] } }) });
+      }
+      if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+      if (url === "https://api.spotify.com/v1/me/albums?limit=20") {
+        albumCalls += 1;
+        return Promise.resolve({ ok: true, json: async () => ({ items: [{ album: { id: `album-${albumCalls}`, name: albumCalls === 1 ? "First Album" : "Refreshed Album", artists: [{ name: "Artist" }], images: [] } }] }) });
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url} ${options.headers?.Authorization || ""}`));
+    });
+
+    render(<Home />);
+    await screen.findByText("No playlists to show yet.");
+    fireEvent.click(screen.getByRole("button", { name: "Albums" }));
+    expect(await screen.findByText("First Album")).toBeInTheDocument();
+
+    await act(async () => { jest.advanceTimersByTime(1000); await Promise.resolve(); });
+    await waitFor(() => expect(albumCalls).toBe(2));
+    expect(await screen.findByText("Refreshed Album")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Albums" })).toHaveAttribute("aria-pressed", "true");
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test("does not let delayed saved-status lookup overwrite a newer save", async () => {
+  const containsResponse = deferred();
+  const saveResponse = deferred();
+  fetch.mockImplementation((url, options = {}) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "first", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    if (url === "/.netlify/functions/catalog-search?q=SZA") return Promise.resolve({ ok: true, json: async () => ({ tracks: [tracks[0]] }) });
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) return containsResponse.promise;
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks?ids=") && options.method === "PUT") return saveResponse.promise;
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("No playlists to show yet.");
+  fireEvent.change(screen.getByLabelText(/what do you want to hear/i), { target: { value: "SZA" } });
+  fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
+  await screen.findByText("Track 1");
+  await waitFor(() => expect(fetch.mock.calls.some(([url]) => typeof url === "string" && url.includes("/v1/me/tracks/contains"))).toBe(true));
+  fireEvent.click(screen.getByRole("button", { name: "Save Track 1" }));
+  const removeButton = await screen.findByRole("button", { name: "Remove Track 1" });
+  expect(removeButton).toBeInTheDocument();
+  expect(removeButton).toBeDisabled();
+  await act(async () => {
+    saveResponse.resolve({ ok: true, json: async () => ({}) });
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(removeButton).not.toBeDisabled());
+
+  await act(async () => {
+    containsResponse.resolve({ ok: true, json: async () => [false] });
+    await Promise.resolve();
+  });
+  expect(screen.getByRole("button", { name: "Remove Track 1" })).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/v1/me/tracks?ids="), expect.objectContaining({ method: "PUT" }));
+});
+
+test("keeps the newest public search when an older request resolves late", async () => {
+  const firstSearch = deferred();
+  const secondSearch = deferred();
+  const szaTrack = { ...tracks[0], id: "sza-track", name: "Stale SZA Result" };
+  const drakeTrack = { ...tracks[0], id: "drake-track", name: "Newest Drake Result" };
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") return Promise.resolve(unauthenticated);
+    if (url === "/.netlify/functions/catalog-search?q=SZA") return firstSearch.promise;
+    if (url === "/.netlify/functions/catalog-search?q=Drake") return secondSearch.promise;
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  fireEvent.click(screen.getByRole("button", { name: "SZA" }));
+  fireEvent.click(screen.getByRole("button", { name: "Drake" }));
+
+  await act(async () => {
+    secondSearch.resolve({ ok: true, json: async () => ({ tracks: [drakeTrack] }) });
+    await Promise.resolve();
+  });
+  expect(await screen.findByText("Newest Drake Result")).toBeInTheDocument();
+  expect(screen.getByText('Matches for “Drake”')).toBeInTheDocument();
+
+  await act(async () => {
+    firstSearch.resolve({ ok: true, json: async () => ({ tracks: [szaTrack] }) });
+    await Promise.resolve();
+  });
+  expect(screen.getByText("Newest Drake Result")).toBeInTheDocument();
+  expect(screen.queryByText("Stale SZA Result")).not.toBeInTheDocument();
+  expect(screen.getByText('Matches for “Drake”')).toBeInTheDocument();
+});
