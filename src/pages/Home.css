@@ -412,7 +412,7 @@
 .section-intro {
   display: flex;
   gap: 28px;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   margin-bottom: 34px;
 }
@@ -510,7 +510,7 @@
 .results-heading {
   display: flex;
   gap: 20px;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   margin-bottom: 27px;
 }
@@ -621,7 +621,7 @@
 .home-page footer {
   display: flex;
   gap: 30px;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
@@ -803,3 +803,4 @@
     transition-duration: 0.01ms !important;
   }
 }
+
