@@ -1,125 +1,96 @@
-@import url("https://fonts.googleapis.com/css?family=Roboto+Slab:100,300,400,700");
-@import url("https://fonts.googleapis.com/css?family=Raleway:300,300i,400,400i,500,500i,600,600i,700,700i,800,800i,900,900i");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap");
 
 * {
-  margin: 0;
-  border: 0;
   box-sizing: border-box;
-  
+  margin: 0;
 }
 
 :root {
-  --font-roboto: "Roboto Slab", serif;
-  --font-raleway: "Raleway", sans-serif;
+  --font-display: "Manrope", "Segoe UI", sans-serif;
+  --font-body: "DM Sans", "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+
+html {
+  min-width: 320px;
+  background: #08090d;
 }
 
 body {
-  font-family: var(--font-roboto);
-  background-color: #949494;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #08090d;
+  color: #f7f5f2;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-.player {
-  width: 100%;
-  position: fixed;
-  left: 0;
-  bottom: 0;
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+::selection {
+  background: #ff705f;
+  color: #09090c;
+}
+
+/* Legacy authenticated dashboard styles */
+.app {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: 1rem;
+  background: #121218;
 }
 
 .header {
+  display: flex;
   width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
 }
 
 .search {
-  width: 100%;
-  height: 100%;
   display: flex;
-  top: 0;
-  border-radius: 10px;
-  padding: 5px;
-  padding-inline: 20px;
+  width: 100%;
   align-items: center;
+  border-radius: 10px;
   background: #1f2123;
-  box-shadow: 5px 5px 7px #1c1d1f;
+  box-shadow: 5px 5px 7px #0e0f11;
+  padding: 5px 20px;
 }
 
 .search input {
+  min-width: 0;
   flex: 1;
-  border: none;
-  font-size: 1.5rem;
-  font-family: var(--font-raleway);
-  font-weight: 500;
-  padding-right: 1rem;
-width: 100%;
-  outline: none;
-  color: #a1a1a1;
+  border: 0;
+  outline: 0;
   background: #1f2123;
-}
-
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px #1f2123 inset !important;
-  -webkit-text-fill-color: #a1a1a1;
-
+  color: #d5d2da;
+  font-size: 1.15rem;
+  font-weight: 500;
 }
 
 .search button {
-  padding: 10px 0px;
   border-radius: 0.5rem;
-  color: #a1a1a1;
-  font-family: var(--font-raleway);
-  font-weight: 900;
-  letter-spacing: 0.75px;
-  font-size: 1.25rem;
-  cursor: pointer;
-  /* temporary */
-
   background: transparent;
-
+  color: #d5d2da;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 10px;
 }
 
-
-
-
-
-/* 
-
-@media screen and (max-width: 600px) {
-  .app {
-    padding: 4rem 2rem;
-  }
-
-  .search {
-    padding: 1rem 1.75rem;
-    width: 100%;
-  }
-
-  .search input {
-    font-size: 1rem;
-  }
-
-  .search img {
-    width: 20px;
-    height: 20px;
-  }
+.player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
 }
-
-@media screen and (max-width: 400px) {
-  .app {
-    padding: 4rem 1rem;
-  }
-
-  h1 {
-    font-size: 2rem;
-  }
-
-  .container {
-    margin-top: 2rem;
-  }
-
-  .movie {
-    width: "100%";
-    margin: 1rem;
-  }
-} */
