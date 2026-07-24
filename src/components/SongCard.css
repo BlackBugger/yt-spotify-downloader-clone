@@ -1,96 +1,157 @@
-.track {
-  display: flex;
+.track-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 15px;
   align-items: center;
-  justify-content: space-between;
-  max-width: 100%;
-  height: 50px;
-  margin: 0.4rem;
+  min-height: 84px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
 
+.track-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.045);
+}
 
-  background-color: rgba(255, 255, 255, 0.4);
-
-  /* position: relative; */
-  border-radius: 12px;
+.track-art {
+  display: grid;
+  width: 58px;
+  height: 58px;
   overflow: hidden;
-  border: none;
-
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0, 1);
-  box-shadow: 0px 13px 10px -7px rgba(0, 0, 0, 0.1);
+  border-radius: 11px;
+  background: #24232c;
+  color: #74717d;
+  place-items: center;
 }
 
-.track-info {
-
-  display: flex;
-
-  align-items: center;
-  padding-left: 1rem;
-  font-size: 12px;
+.track-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.track-image img {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 40px;
-  height: 40px;
-  margin-right: 0.5rem;
-  border-radius: 10px;
+.track-copy {
+  min-width: 0;
 }
 
-.track-title {
-  font-size: 10px;
-  display: flex;
-  justify-content: center;
-width: 100%;
-  flex-direction: column;
+.track-copy h3,
+.track-copy p,
+.track-copy span,
+.track-copy small {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.track-title h3 {
+.track-copy h3 {
+  color: #f2f0f4;
+  font-family: var(--font-display);
   font-size: 15px;
-
-
+  font-weight: 700;
 }
 
-.track div:nth-of-type(2) h3,
-p {
-  /* display: flex;
-      flex-direction: column; */
-  margin: -0.2em;
+.track-copy p {
+  margin-top: 3px;
+  color: #9c99a4;
+  font-size: 13px;
 }
 
-.download {
+.track-copy span {
+  display: block;
+  margin-top: 2px;
+  color: #5f5d67;
+  font-size: 11px;
+}
+
+.track-copy small {
+  display: block;
+  margin-top: 5px;
+  color: #ff9c8f;
+  font-size: 11px;
+}
+
+.track-actions {
   display: flex;
+  gap: 8px;
   align-items: center;
-
-  padding-right: 1rem;
 }
 
-.download img {
-  width: 20px;
-  margin-top: -3px;
-}
-
-.download a {
-  text-decoration: none;
+.track-action {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  min-width: 102px;
+  min-height: 42px;
+  padding: 0 13px;
+  border-radius: 10px;
   cursor: pointer;
-  color: black;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
 }
 
-
-.download button {
-  background: transparent;
-  cursor: pointer;
+.track-action:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
-
-
-.track-info p {
-  opacity: 0.8;
-
+.track-action:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
+.track-action.secondary {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c5c2cb;
+}
 
-.track:hover {
-  box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
-  transform: scale(1.05, 1.05);
+.track-action.secondary:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.track-action.primary {
+  background: #f4f1ee;
+  color: #111116;
+}
+
+.track-action.primary:hover:not(:disabled) {
+  background: #fff;
+}
+
+.spin {
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .track-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .track-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .track-action {
+    flex: 1;
+  }
 }
