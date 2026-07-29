@@ -111,6 +111,7 @@ test("clears player state when the device is not ready and when the token is rem
   await act(async () => { handlers.not_ready(); });
   expect(screen.getByTestId("device")).toBeEmptyDOMElement();
   expect(screen.getByTestId("track")).toBeEmptyDOMElement();
+  expect(screen.getByTestId("error")).toHaveTextContent("disconnected");
 
   await act(async () => {
     handlers.player_state_changed({ paused: false, track_window: { current_track: { name: "Again" } } });
@@ -126,6 +127,15 @@ test("reports a player connection that resolves false", async () => {
   player.connect.mockResolvedValue(false);
   render(<Harness token="in-memory-token" onReady={jest.fn()} />);
   expect(await screen.findByText(/could not connect/i)).toBeInTheDocument();
+});
+
+test("reports when browser autoplay blocks playback", async () => {
+  render(<Harness token="in-memory-token" onReady={jest.fn()} />);
+  await act(async () => { await Promise.resolve(); });
+
+  await act(async () => { handlers.autoplay_failed(); });
+
+  expect(screen.getByTestId("error")).toHaveTextContent("autoplay was blocked");
 });
 
 test("retries SDK loading after a script error", async () => {

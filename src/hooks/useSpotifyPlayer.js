@@ -59,13 +59,16 @@ export function useSpotifyPlayer(accessToken, onReady) {
       player.addListener("ready", ({ device_id: readyDeviceId }) => {
         if (!active) return;
         setDeviceId(readyDeviceId);
+        setError("");
         onReady?.(readyDeviceId);
       });
       player.addListener("not_ready", () => {
         if (!active) return;
         setDeviceId("");
         setPlayerState(null);
+        setError("Spotify playback device disconnected.");
       });
+      player.addListener("autoplay_failed", () => { if (active) setError("Spotify autoplay was blocked. Press Play again to continue."); });
       player.addListener("player_state_changed", (state) => { if (active) setPlayerState(state); });
       ["initialization_error", "authentication_error", "account_error", "playback_error"].forEach((event) => {
         player.addListener(event, ({ message }) => { if (active) setError(message || "Spotify playback is unavailable."); });

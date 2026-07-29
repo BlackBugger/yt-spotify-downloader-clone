@@ -129,6 +129,11 @@
   box-shadow: 0 0 0 5px rgba(112, 224, 170, 0.1);
 }
 
+.status-dot.idle {
+  background: #918f99;
+  box-shadow: 0 0 0 5px rgba(145, 143, 153, 0.1);
+}
+
 .status-dot.loading {
   background: #f0c36c;
   box-shadow: 0 0 0 5px rgba(240, 195, 108, 0.1);
@@ -852,6 +857,11 @@
 
   .catalog-prefix {
     display: none;
+  }
+
+  .header-controls.connected .catalog-status {
+    gap: 0;
+    font-size: 0;
   }
 
   .hero {

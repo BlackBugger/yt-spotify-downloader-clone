@@ -31,8 +31,10 @@ function artworkFor(item) {
 function LibraryCard({ item }) {
   const entry = item.track || item.album || item;
   const metadata = trackArtists(entry) || entry.owner?.display_name || "Spotify";
+  const artwork = artworkFor(item);
+  const [artworkFailed, setArtworkFailed] = useState(false);
   return <article className="library-card">
-    {artworkFor(item) ? <img src={artworkFor(item)} alt="" loading="lazy" /> : <div className="library-art-placeholder" aria-hidden="true" />}
+    {artwork && !artworkFailed ? <img src={artwork} alt="" loading="lazy" onError={() => setArtworkFailed(true)} /> : <div className="library-art-placeholder" aria-hidden="true" />}
     <div><strong>{entry.name}</strong><span>{metadata}</span></div>
   </article>;
 }
@@ -64,7 +66,12 @@ function LibraryPanel({ account, library, onLoad }) {
 }
 
 function Header({ account, catalogStatus, onLibrary, onLogout }) {
-  const catalogUnavailable = catalogStatus === "unavailable";
+  const catalogLabel = {
+    idle: "Ready",
+    loading: "Checking",
+    ready: "Online",
+    unavailable: "Unavailable",
+  }[catalogStatus] || "Ready";
   const openLibrary = () => {
     onLibrary("playlists");
     const panel = document.getElementById("spotify-library");
@@ -73,9 +80,9 @@ function Header({ account, catalogStatus, onLibrary, onLogout }) {
   };
   return <header className="site-header">
     <a className="brand" href="/" aria-label="Cruz Audio home"><span className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></span><span>CRUZ</span><span className="brand-divider">/</span><span className="brand-product">AUDIO</span></a>
-    <div className="header-controls">
+    <div className={`header-controls ${account ? "connected" : "public"}`}>
       {account ? <><button className="header-button" onClick={openLibrary}>Library</button>{account.images?.[0]?.url && <img className="header-avatar" src={account.images[0].url} alt="" />}<span className="profile-name">{account.display_name || account.id}</span><button className="header-button" onClick={onLogout}>Disconnect</button></> : <button className="header-button connect" onClick={() => window.location.assign("/.netlify/functions/spotify-login")}>Connect Spotify</button>}
-      <span className="catalog-status" role="status" aria-label={`Catalog status: ${catalogUnavailable ? "unavailable" : "online"}`}><span className={`status-dot ${catalogStatus}`} aria-hidden="true" /><span className="catalog-prefix">Catalog </span>{catalogUnavailable ? "Unavailable" : "Online"}</span>
+      <span className="catalog-status" role="status" aria-label={`Catalog status: ${catalogLabel.toLowerCase()}`}><span className={`status-dot ${catalogStatus}`} aria-hidden="true" /><span className="catalog-prefix">Catalog </span>{catalogLabel}</span>
     </div>
   </header>;
 }
@@ -88,7 +95,7 @@ export default function Home() {
   const [searchFailed, setSearchFailed] = useState(false);
   const [error, setError] = useState("");
   const [lastQuery, setLastQuery] = useState("");
-  const [catalogStatus, setCatalogStatus] = useState("ready");
+  const [catalogStatus, setCatalogStatus] = useState("idle");
   const [account, setAccount] = useState(null);
   const [token, setToken] = useState("");
   const [expiresIn, setExpiresIn] = useState(0);
@@ -218,6 +225,7 @@ export default function Home() {
     setError("");
     setSearchFailed(false);
     setLoading(true);
+    setCatalogStatus("loading");
     setSearched(true);
     setLastQuery(value);
     try {

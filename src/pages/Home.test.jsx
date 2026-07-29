@@ -57,6 +57,7 @@ test("searches the public Netlify catalog function and renders twelve results", 
   expect(fetch).toHaveBeenCalledWith("/.netlify/functions/catalog-search?q=SZA", undefined);
   expect(screen.getAllByRole("article")).toHaveLength(12);
   expect(screen.getByRole("status", { name: /search status/i })).toHaveTextContent("12 tracks found");
+  expect(screen.getByRole("status", { name: /catalog status: online/i })).toBeInTheDocument();
 });
 
 test("reports a public search error in its dedicated status region", async () => {
@@ -77,21 +78,26 @@ test("starts in public mode when the page has an OAuth code query", async () => 
 
 test("does not store session access tokens in browser storage", async () => {
   const storageSpy = jest.spyOn(Storage.prototype, "setItem");
+  const playlistResponse = deferred();
   fetch.mockImplementation((url) => {
     if (url === "/.netlify/functions/spotify-session") return Promise.resolve({ ok: true, json: async () => ({ authenticated: true, accessToken: "short-lived", expiresIn: 3600, profile: { display_name: "Cruz", images: [] } }) });
-    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return playlistResponse.promise;
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
   render(<Home />);
   expect(await screen.findByText("Cruz")).toBeInTheDocument();
-  await screen.findByText("No playlists to show yet.");
+  await act(async () => {
+    playlistResponse.resolve({ ok: true, json: async () => ({ items: [] }) });
+    await playlistResponse.promise;
+  });
+  expect(await screen.findByText("No playlists to show yet.")).toBeInTheDocument();
   expect(storageSpy).not.toHaveBeenCalled();
 });
 
 test("uses dedicated busy and live semantics instead of a broad results live region", async () => {
   await act(async () => { render(<Home />); await Promise.resolve(); });
   expect(screen.getByRole("region", { name: /search results/i })).toHaveAttribute("aria-busy", "false");
-  expect(screen.getByRole("status", { name: /catalog status/i })).toBeInTheDocument();
+  expect(screen.getByRole("status", { name: /catalog status: ready/i })).toBeInTheDocument();
 });
 
 test("preserves the complete public how-it-works guidance", async () => {

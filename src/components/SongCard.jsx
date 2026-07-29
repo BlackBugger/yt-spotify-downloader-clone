@@ -11,6 +11,7 @@ async function responseData(response) {
 export default function SongCard({ track, onPlay, onToggleSaved, saved = false, connected = false }) {
   const [activeAction, setActiveAction] = useState("");
   const [actionError, setActionError] = useState("");
+  const [artworkFailed, setArtworkFailed] = useState(false);
   const title = track.name;
   const artist = track.artists.map((item) => item.name).join(", ");
   const artwork = track.album?.images?.[0]?.url;
@@ -30,10 +31,18 @@ export default function SongCard({ track, onPlay, onToggleSaved, saved = false, 
   }
 
   function openYoutube() {
+    const popup = window.open("about:blank", "_blank");
+    if (popup) popup.opener = null;
     return runAction("youtube", async () => {
-      const { youtubeUrl } = await matchVideo();
-      if (!youtubeUrl) throw new Error("No YouTube match was found.");
-      window.open(youtubeUrl, "_blank", "noopener,noreferrer");
+      try {
+        const { youtubeUrl } = await matchVideo();
+        if (!youtubeUrl) throw new Error("No YouTube match was found.");
+        if (popup) popup.location.replace(youtubeUrl);
+        else window.location.assign(youtubeUrl);
+      } catch (matchError) {
+        popup?.close();
+        throw matchError;
+      }
     });
   }
 
@@ -51,7 +60,7 @@ export default function SongCard({ track, onPlay, onToggleSaved, saved = false, 
   }
 
   return <article className="track-card">
-    <div className="track-art">{artwork ? <img src={artwork} alt="" loading="lazy" /> : <FiMusic />}</div>
+    <div className="track-art">{artwork && !artworkFailed ? <img src={artwork} alt="" loading="lazy" onError={() => setArtworkFailed(true)} /> : <FiMusic />}</div>
     <div className="track-copy"><h3>{title}</h3><p>{artist}</p><span>{track.album?.name}</span>{actionError && <small role="alert">{actionError}</small>}</div>
     <div className={`track-actions ${connected ? "connected" : ""}`}>
       {connected && <><button type="button" className="track-action secondary" aria-label={`Play ${title}`} onClick={() => runAction("play", () => onPlay(track))} disabled={isBusy}><FiPlay /><span>Play</span></button><button type="button" className="track-action secondary icon-action" aria-label={`${saved ? "Remove" : "Save"} ${title}`} aria-pressed={saved} onClick={() => runAction("save", () => onToggleSaved(track))} disabled={isBusy}>{activeAction === "save" ? <FiLoader className="spin" /> : <FiHeart fill={saved ? "currentColor" : "none"} />}<span>{saved ? "Remove" : "Save"}</span></button></>}
