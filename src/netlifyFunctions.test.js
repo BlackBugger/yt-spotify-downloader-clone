@@ -197,6 +197,7 @@ test("lyrics lookup sends an exact track signature to LRCLIB with client identif
     source: "LRCLIB",
   });
   expect(response.headers["Cache-Control"]).toContain("max-age=300");
+  expect(response.headers["Netlify-CDN-Cache-Control"]).toContain("durable");
 });
 
 test("lyrics lookup rejects incomplete requests without contacting the provider", async () => {

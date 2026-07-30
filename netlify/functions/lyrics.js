@@ -11,6 +11,7 @@ const CACHE_LIMIT = 250;
 const lyricsCache = new Map();
 const cacheableLyrics = {
   "Cache-Control": "public, max-age=300, stale-while-revalidate=86400",
+  "Netlify-CDN-Cache-Control": "public, durable, s-maxage=86400, stale-while-revalidate=604800",
 };
 
 function requiredText(value, maximum) {
