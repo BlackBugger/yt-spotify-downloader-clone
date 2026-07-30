@@ -15,7 +15,7 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 - The dual-mode Spotify/security implementation was committed and pushed by Ody before this reconciliation.
 - The Deploy Preview is built from the PR branch, not production.
 - Codex completed the remaining local UI resilience, accessibility feedback, popup handling, artwork fallback, player error recovery, functional Library actions, centered transport player, and 390px work described below.
-- Netlify built implementation commit `3a2a21dd7f4f2bdf2d12e5d39387e9a8722888e2` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
+- Netlify built device-picker implementation commit `cf4c2e7b75e98998164fc84945b7b8c2921daebb` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
 - PR #1 remains a draft. Nothing has been merged to `main` or deployed to production.
 
 ## Product contract
@@ -37,6 +37,9 @@ Cruz Audio has two independent modes:
 - Spotify Web Playback SDK single-load and single-player lifecycle, device targeting, token refresh, direct-gesture `activateElement()`, player state, play/pause, previous/next, seeking, elapsed/duration display, normalized errors, and disconnect handling.
 - The centered bottom player uses a neon Spotify-inspired treatment and remains usable at exactly 390px.
 - The bottom player exposes a synchronized Spotify save/remove heart with optimistic pending state, rollback, and saved-status loading for the current track.
+- The bottom player includes an accessible Spotify Connect-style device picker that refreshes the account's current output list, marks active/restricted states, and transfers playback without persisting device IDs.
+- A selected remote output remains the target for later track/context Play, play/pause, previous/next, and seek actions instead of pulling playback back to the browser. Switching back to the browser still invokes `activateElement()` from the direct device-selection gesture.
+- Device-list and transfer responses are invalidated on logout/unmount, missing device IDs are ignored, restricted devices are disabled, and transfer failures remain in the open picker with a retryable error.
 - SDK authentication errors trigger one session refresh, raw token errors are not shown to users, and a healthy player-state event clears stale playback errors.
 - OAuth callback redirects are absolute to the trusted app origin, and leftover OAuth query parameters are removed from the browser address bar.
 - Node 16-compatible runtime-fetch fallback and Netlify multi-cookie response compatibility.
@@ -52,7 +55,7 @@ Cruz Audio has two independent modes:
 
 ## Validation observed on 2026-07-30
 
-- Complete Jest suite: 8 suites, 68 tests passed, clean output.
+- Complete Jest suite: 8 suites, 72 tests passed, clean output.
 - Production CRA build: compiled successfully. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
 - All 8 `netlify/functions/*.js` files passed `node --check`.
 - Runtime-fetch fallback resolved the bundled `node-fetch` path.
@@ -65,6 +68,9 @@ Cruz Audio has two independent modes:
 - Prior deployed-preview playback regression (unchanged by this layout pass): `Snooze` started from the direct Play gesture; the player reported active playback with previous, pause, next, seek, elapsed-time, and 3:21 duration controls.
 - Deployed-preview browser console: no warnings or errors; no visible invalid-token or playback-error alert after search and playback.
 - Deployed-preview exact 390px check: no horizontal overflow; results began at the compact hero boundary; all four 42px actions stayed in one row inside the first card; the Library followed the results; and the player heart was present.
+- Deployed-preview connected device picker: three current Spotify outputs loaded successfully, including a TV and browser devices; no output was selected during read-only visual QA.
+- Deployed-preview exact 390px device-picker check: no horizontal overflow; the 353px drop-up stayed inside the viewport above the player; all five transport actions rendered as 44px targets in one row; and the player remained fully visible.
+- Device transfer and remote-target transport were verified through regression tests rather than changing the owner's real playback destination.
 
 ## Remaining release gates
 
