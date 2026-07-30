@@ -17,6 +17,7 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 - Codex completed the remaining local UI resilience, accessibility feedback, popup handling, artwork fallback, player error recovery, functional Library actions, centered transport player, and 390px work described below.
 - Codex committed and pushed the accessible bottom-player volume slider in `d7d631bdd057d6b40161ac5af676254c20aca3e6`. GitHub's Netlify check succeeded, and the Deploy Preview bundle was verified to contain both the visible volume control and targeted Spotify Connect volume handling.
 - Netlify built interactive-lyrics implementation `c471ecbed246694a9686ee3aeaba0578a4591fd4` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
+- Codex pushed lyrics reliability commits `90446b9385878b2e22a31a4d9067860c43186968` and `c2b2864000d0d4c359065c49ccd6856184319bbe`. Netlify's Deploy Preview checks succeeded.
 - PR #1 remains a draft. Nothing has been merged to `main` or deployed to production.
 
 ## Product contract
@@ -40,7 +41,7 @@ Cruz Audio has two independent modes:
 - The bottom player exposes the active output's volume with an accessible percentage slider. Browser playback uses the existing Web Playback SDK player's `getVolume()`/`setVolume()` methods without recreating the player; selected Spotify Connect outputs use the targeted Web API volume endpoint and respect `supports_volume`.
 - The bottom player exposes a synchronized Spotify save/remove heart with optimistic pending state, rollback, and saved-status loading for the current track.
 - The bottom player exposes a dedicated microphone shortcut that focuses and scrolls to the active track's Lyrics section.
-- The Lyrics section matches the exact track, artist, album, and duration through a rate-limited server-side LRCLIB lookup; the documented search and exact-signature endpoints are used sequentially as fallbacks, and no browser credential or new secret is required.
+- The Lyrics section matches the exact track, artist, album, and duration through a rate-limited server-side LRCLIB lookup. Search and exact-signature requests run concurrently with a five-second provider timeout; exact successful matches use a bounded six-hour warm-function cache, five-minute browser cache, and Netlify durable CDN cache. Errors and misses are never cached, and no browser credential or new secret is required.
 - Synchronized lyrics highlight and follow the current line, expose timestamped tap-to-seek controls through the existing browser/remote playback target, and allow follow mode to be toggled.
 - Untimed, instrumental, loading, unavailable, retry, provider-credit, and artwork-fallback states remain contained within the dedicated Lyrics region.
 - Lyrics request ordering prevents a late response for an older track or logged-out session from replacing the current state. Auto-follow scrolls only the lyric viewport and does not move the surrounding page.
@@ -64,6 +65,7 @@ Cruz Audio has two independent modes:
 
 - Complete Jest suite: 10 suites, 85 tests passed, clean output.
 - Local volume-control regression after the deployed-preview validation: 10 suites, 86 tests passed, clean output.
+- Lyrics concurrency and cache regression: 10 suites, 88 tests passed, clean output.
 - Production CRA build: compiled successfully. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
 - The local volume-control production build compiled successfully using the repository's documented Windows ESLint-cache workaround. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
 - All 9 `netlify/functions/*.js` files passed `node --check`.
@@ -81,6 +83,7 @@ Cruz Audio has two independent modes:
 - Deployed-preview exact 390px device-picker check: no horizontal overflow; the 353px drop-up stayed inside the viewport above the player; all five transport actions rendered as 44px targets in one row; and the player remained fully visible.
 - Device transfer and remote-target transport were verified through regression tests rather than changing the owner's real playback destination.
 - Deployed-preview `Marilag` lyrics lookup returned both synchronized and plain LRCLIB lyrics for the exact 2:37 recording.
+- A later live `Marilag` probe reached the updated fail-fast path but LRCLIB timed out upstream: the preview returned a safe 504 in 6.47 seconds including Netlify overhead. This confirms the former sequential wait is gone, but it also confirms that uncached first-time lyrics still depend on LRCLIB availability.
 - Live browser playback advanced the active lyric line; selecting a later timestamp sought the existing Spotify player; Follow could be disabled and re-enabled; and the player microphone shortcut focused `#spotify-lyrics`.
 - Deployed-preview exact 390px lyrics check: 390px CSS viewport, no horizontal overflow, a 351px Lyrics panel inside the viewport, and six 44px transport targets in one row.
 - Local connected-mode volume QA at exactly 390px: the 355px by 214px player stayed inside the viewport; all six transport controls remained 44px targets; the enabled 257px volume range showed the SDK's 65% value; no page element crossed the viewport boundary; and browser diagnostics contained no warnings or errors.
@@ -91,8 +94,9 @@ Cruz Audio has two independent modes:
 ## Remaining release gates
 
 1. Keep PR #1 draft until the owner decides the implementation is ready for formal review.
-2. Review Spotify policy before commercial streaming use.
-3. Do not merge or publish production without a separate explicit instruction.
+2. For production-grade lyrics availability, select and license a second provider such as Musixmatch, obtain its server-side API credential, and add an exact-recording fallback. Spotify's public Web API does not expose the lyrics shown in Spotify's own clients.
+3. Review Spotify policy before commercial streaming use.
+4. Do not merge or publish production without a separate explicit instruction.
 
 ## Human/external prerequisites
 
