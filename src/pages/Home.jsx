@@ -61,12 +61,27 @@ export default function Home() {
   const [library, setLibrary] = useState({ tab: "playlists", items: [], loading: false, error: "" });
   const [notice, setNotice] = useState("");
   const [playerNotice, setPlayerNotice] = useState("");
+  const [playbackDevices, setPlaybackDevices] = useState({
+    items: [],
+    loading: false,
+    transferring: "",
+    error: "",
+  });
+  const [playbackTargetId, setPlaybackTargetId] = useState("");
+  const [remotePlayback, setRemotePlayback] = useState({
+    track: null,
+    isPlaying: false,
+    position: 0,
+    duration: 0,
+  });
   const authenticatedRef = useRef(false);
   const sessionRequestRef = useRef(0);
   const searchRequestRef = useRef(0);
   const selectedLibraryTabRef = useRef("playlists");
   const libraryRequestRef = useRef(0);
   const savedStatusRequestRef = useRef(0);
+  const deviceRequestRef = useRef(0);
+  const deviceTransferRef = useRef(0);
   const savedMutationVersionRef = useRef({});
   const savePendingRef = useRef({});
   const savedRef = useRef({});
@@ -79,6 +94,8 @@ export default function Home() {
     searchRequestRef.current += 1;
     libraryRequestRef.current += 1;
     savedStatusRequestRef.current += 1;
+    deviceRequestRef.current += 1;
+    deviceTransferRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -105,7 +122,12 @@ export default function Home() {
       selectedLibraryTabRef.current = "playlists";
       libraryRequestRef.current += 1;
       savedStatusRequestRef.current += 1;
+      deviceRequestRef.current += 1;
+      deviceTransferRef.current += 1;
       setLibrary({ tab: "playlists", items: [], loading: false, error: "" });
+      setPlaybackDevices({ items: [], loading: false, transferring: "", error: "" });
+      setPlaybackTargetId("");
+      setRemotePlayback({ track: null, isPlaying: false, position: 0, duration: 0 });
       return;
     }
     authenticatedRef.current = true;
@@ -158,7 +180,12 @@ export default function Home() {
 
   const playerReady = useCallback(() => undefined, []);
   const player = useSpotifyPlayer(token, playerReady);
-  const nowPlaying = player.playerState?.track_window?.current_track;
+  const browserNowPlaying = player.playerState?.track_window?.current_track;
+  const isRemotePlayback = Boolean(playbackTargetId && playbackTargetId !== player.deviceId);
+  const nowPlaying = isRemotePlayback ? (remotePlayback.track || browserNowPlaying) : browserNowPlaying;
+  const playbackIsPlaying = isRemotePlayback ? remotePlayback.isPlaying : player.isPlaying;
+  const playbackPosition = isRemotePlayback ? remotePlayback.position : player.position;
+  const playbackDuration = isRemotePlayback ? remotePlayback.duration : player.duration;
   const nowPlayingId = nowPlaying?.id || "";
   useEffect(() => { savedRef.current = saved; }, [saved]);
   useEffect(() => {
@@ -237,6 +264,103 @@ export default function Home() {
     else libraryRequestRef.current += 1;
   }, [token, loadLibrary]);
 
+  const loadPlaybackDevices = useCallback(async () => {
+    if (!tokenRef.current) return false;
+    const requestId = ++deviceRequestRef.current;
+    setPlaybackDevices((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const response = await spotifyRequest("https://api.spotify.com/v1/me/player/devices");
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      if (requestId !== deviceRequestRef.current || !authenticatedRef.current) return false;
+      const items = (data.devices || []).filter((device) => device?.id);
+      const activeDevice = items.find((device) => device.is_active);
+      setPlaybackDevices({ items, loading: false, transferring: "", error: "" });
+      if (activeDevice) {
+        setPlaybackTargetId(activeDevice.id);
+        if (activeDevice.id !== player.deviceId) {
+          try {
+            const playbackResponse = await spotifyRequest("https://api.spotify.com/v1/me/player");
+            if (
+              playbackResponse.ok
+              && playbackResponse.status !== 204
+              && requestId === deviceRequestRef.current
+              && authenticatedRef.current
+            ) {
+              const playback = await playbackResponse.json();
+              setRemotePlayback({
+                track: playback.item || null,
+                isPlaying: Boolean(playback.is_playing),
+                position: Number(playback.progress_ms || 0),
+                duration: Number(playback.item?.duration_ms || 0),
+              });
+            }
+          } catch {
+            // The device list remains useful even when the optional playback snapshot is unavailable.
+          }
+        }
+      }
+      return true;
+    } catch {
+      if (requestId !== deviceRequestRef.current || !authenticatedRef.current) return false;
+      setPlaybackDevices((current) => ({
+        ...current,
+        loading: false,
+        transferring: "",
+        error: "Spotify devices could not be loaded. Open Spotify on the device and try again.",
+      }));
+      return false;
+    }
+  }, [player.deviceId, spotifyRequest]);
+
+  const transferPlayback = useCallback(async (device) => {
+    if (!device?.id || device.is_restricted || !tokenRef.current) return false;
+    if (device.is_active) {
+      setPlaybackTargetId(device.id);
+      return true;
+    }
+    if (device.id === player.deviceId) await player.activateElement?.();
+    const transferId = ++deviceTransferRef.current;
+    setPlaybackDevices((current) => ({ ...current, transferring: device.id, error: "" }));
+    try {
+      const response = await spotifyRequest("https://api.spotify.com/v1/me/player", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device_ids: [device.id] }),
+      });
+      if (!response.ok) throw new Error();
+      if (transferId !== deviceTransferRef.current || !authenticatedRef.current) return false;
+      if (device.id !== player.deviceId) {
+        setRemotePlayback({
+          track: browserNowPlaying || null,
+          isPlaying: Boolean(player.isPlaying),
+          position: Number(player.position || 0),
+          duration: Number(player.duration || browserNowPlaying?.duration_ms || 0),
+        });
+      }
+      setPlaybackTargetId(device.id);
+      setPlaybackDevices((current) => ({
+        ...current,
+        items: current.items.map((item) => ({
+          ...item,
+          is_active: item.id === device.id,
+        })),
+        transferring: "",
+        error: "",
+      }));
+      return true;
+    } catch {
+      if (transferId === deviceTransferRef.current && authenticatedRef.current) {
+        setPlaybackDevices((current) => ({
+          ...current,
+          transferring: "",
+          error: "Spotify could not switch devices. Make sure Spotify is open there and try again.",
+        }));
+      }
+      return false;
+    }
+  }, [browserNowPlaying, player, spotifyRequest]);
+
   async function submit(event, suppliedQuery) {
     event?.preventDefault();
     const value = (suppliedQuery || query).trim();
@@ -304,23 +428,83 @@ export default function Home() {
   }
 
   async function playSpotifyItem(item) {
-    await player.activateElement?.();
-    if (!player.deviceId) { setNotice("Cruz Audio is connecting a Spotify device. Spotify Premium is required for in-browser playback."); return; }
+    const targetId = playbackTargetId || player.deviceId;
+    if (targetId && targetId === player.deviceId) await player.activateElement?.();
+    if (!targetId) { setNotice("Cruz Audio is connecting a Spotify device. Spotify Premium is required for in-browser playback."); return; }
     try {
       const playback = item.type === "track" ? { uris: [item.uri] } : { context_uri: item.uri };
-      const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(player.deviceId)}`, {
+      const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(targetId)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(playback),
       });
       if (!response.ok) throw new Error();
+      if (targetId !== player.deviceId) {
+        setRemotePlayback((current) => ({
+          track: item.type === "track" ? item : current.track,
+          isPlaying: true,
+          position: 0,
+          duration: item.type === "track" ? Number(item.duration_ms || 0) : current.duration,
+        }));
+      }
       setNotice("");
     } catch { setNotice("Spotify could not transfer playback. Your library and saves still work; Premium is required for browser playback."); }
   }
 
   async function togglePlayerPlayback() {
-    await player.activateElement?.();
-    await player.togglePlay?.();
+    const targetId = playbackTargetId || player.deviceId;
+    if (!targetId) return;
+    if (targetId === player.deviceId) {
+      await player.activateElement?.();
+      await player.togglePlay?.();
+      return;
+    }
+    try {
+      const action = playbackIsPlaying ? "pause" : "play";
+      const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/${action}?device_id=${encodeURIComponent(targetId)}`, {
+        method: "PUT",
+      });
+      if (!response.ok) throw new Error();
+      setRemotePlayback((current) => ({ ...current, isPlaying: !playbackIsPlaying }));
+      setNotice("");
+    } catch {
+      setNotice("Spotify could not update playback on that device.");
+    }
+  }
+
+  async function skipRemote(direction) {
+    const targetId = playbackTargetId || player.deviceId;
+    if (!targetId || targetId === player.deviceId) {
+      await player[direction === "next" ? "nextTrack" : "previousTrack"]?.();
+      return;
+    }
+    try {
+      const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/${direction}?device_id=${encodeURIComponent(targetId)}`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error();
+      setNotice("");
+    } catch {
+      setNotice(`Spotify could not skip to the ${direction} track on that device.`);
+    }
+  }
+
+  async function seekPlayback(position) {
+    const targetId = playbackTargetId || player.deviceId;
+    if (!targetId || targetId === player.deviceId) {
+      await player.seek?.(position);
+      return;
+    }
+    try {
+      const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/seek?position_ms=${encodeURIComponent(position)}&device_id=${encodeURIComponent(targetId)}`, {
+        method: "PUT",
+      });
+      if (!response.ok) throw new Error();
+      setRemotePlayback((current) => ({ ...current, position }));
+      setNotice("");
+    } catch {
+      setNotice("Spotify could not seek on that device.");
+    }
   }
 
   async function logout() {
@@ -372,18 +556,26 @@ export default function Home() {
     </main>
     {account && <SpotifyNowPlaying
       track={nowPlaying}
-      isPlaying={player.isPlaying}
-      isReady={Boolean(player.deviceId)}
-      error={playerNotice}
-      position={player.position}
-      duration={player.duration}
+      isPlaying={playbackIsPlaying}
+      isReady={Boolean(playbackTargetId || player.deviceId)}
+      error={isRemotePlayback ? "" : playerNotice}
+      position={playbackPosition}
+      duration={playbackDuration}
       onTogglePlay={togglePlayerPlayback}
-      onPrevious={player.previousTrack}
-      onNext={player.nextTrack}
-      onSeek={player.seek}
+      onPrevious={() => skipRemote("previous")}
+      onNext={() => skipRemote("next")}
+      onSeek={seekPlayback}
       saved={Boolean(nowPlayingId && saved[nowPlayingId])}
       savePending={Boolean(nowPlayingId && savePending[nowPlayingId])}
       onToggleSaved={toggleSaved}
+      devices={playbackDevices.items}
+      devicesLoading={playbackDevices.loading}
+      deviceTransferring={playbackDevices.transferring}
+      deviceError={playbackDevices.error}
+      onRequestDevices={loadPlaybackDevices}
+      onSelectDevice={transferPlayback}
+      activeDeviceName={playbackDevices.items.find((device) => device.id === playbackTargetId)?.name}
+      isRemoteDevice={isRemotePlayback}
     />}
     <footer><div><span className="footer-brand">CRUZ / AUDIO</span><p>Built for faster music discovery.</p></div><p className="legal-copy">Please respect creators and only download content you&apos;re authorized to use.</p></footer>
   </div>;

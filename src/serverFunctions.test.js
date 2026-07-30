@@ -12,6 +12,7 @@ const {
   validateSearchQuery,
   validateState,
 } = require("../netlify/functions/spotify-utils");
+const { handler: spotifyLogin } = require("../netlify/functions/spotify-login");
 
 beforeEach(() => resetRateLimits());
 
@@ -53,6 +54,27 @@ test("creates a secure httpOnly refresh cookie and validates oauth state", () =>
   expect(validateState(state, "b".repeat(64))).toBe(false);
   expect(validateState("é", "a")).toBe(false);
   expect(() => parseCookies("cruz_spotify_refresh=%E0%A4%A")).not.toThrow();
+});
+
+test("requests both Spotify device control scopes during login", async () => {
+  process.env.SPOTIFY_CLIENT_ID = "test-client";
+  try {
+    const response = await spotifyLogin({
+      httpMethod: "GET",
+      headers: { host: "localhost:8888", "x-forwarded-proto": "http" },
+    });
+    const authorizeUrl = new URL(response.headers.Location);
+    const requestedScopes = authorizeUrl.searchParams.get("scope").split(" ");
+
+    expect(response.statusCode).toBe(302);
+    expect(requestedScopes).toEqual(expect.arrayContaining([
+      "user-read-playback-state",
+      "user-modify-playback-state",
+      "streaming",
+    ]));
+  } finally {
+    delete process.env.SPOTIFY_CLIENT_ID;
+  }
 });
 
 test("falls back to bundled node-fetch when the function runtime has no global fetch", async () => {

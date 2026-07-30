@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { FiDisc, FiHeart, FiPause, FiPlay, FiSkipBack, FiSkipForward } from "react-icons/fi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  FiCheck,
+  FiDisc,
+  FiHeart,
+  FiPause,
+  FiPlay,
+  FiRefreshCw,
+  FiSkipBack,
+  FiSkipForward,
+  FiSpeaker,
+  FiX,
+} from "react-icons/fi";
 import "./SpotifyNowPlaying.css";
 
 function clamp(value, minimum, maximum) {
@@ -27,9 +38,20 @@ export default function SpotifyNowPlaying({
   saved,
   savePending,
   onToggleSaved,
+  devices = [],
+  devicesLoading,
+  deviceTransferring,
+  deviceError,
+  onRequestDevices,
+  onSelectDevice,
+  activeDeviceName,
+  isRemoteDevice,
 }) {
   const [displayPosition, setDisplayPosition] = useState(position || 0);
   const [artworkFailed, setArtworkFailed] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const deviceButtonRef = useRef(null);
+  const devicePickerRef = useRef(null);
   const trackDuration = Number(duration || track?.duration_ms || 0);
   const artwork = track?.album?.images?.[0]?.url || "";
   const artists = useMemo(
@@ -53,6 +75,31 @@ export default function SpotifyNowPlaying({
     return () => window.clearInterval(timer);
   }, [isPlaying, track, trackDuration]);
 
+  useEffect(() => {
+    if (!devicesOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setDevicesOpen(false);
+        deviceButtonRef.current?.focus();
+      }
+    };
+    const closeOutside = (event) => {
+      if (
+        !devicePickerRef.current?.contains(event.target)
+        && !deviceButtonRef.current?.contains(event.target)
+      ) {
+        setDevicesOpen(false);
+      }
+    };
+    devicePickerRef.current?.focus();
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("pointerdown", closeOutside);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("pointerdown", closeOutside);
+    };
+  }, [devicesOpen]);
+
   const canControl = Boolean(track && isReady);
   const elapsed = formatTime(displayPosition);
   const total = formatTime(trackDuration);
@@ -73,6 +120,20 @@ export default function SpotifyNowPlaying({
     const nextPosition = Number(event.target.value);
     setDisplayPosition(nextPosition);
     onSeek?.(nextPosition);
+  };
+
+  const toggleDevices = () => {
+    const nextOpen = !devicesOpen;
+    setDevicesOpen(nextOpen);
+    if (nextOpen) onRequestDevices?.();
+  };
+
+  const chooseDevice = async (device) => {
+    const transferred = await onSelectDevice?.(device);
+    if (transferred !== false) {
+      setDevicesOpen(false);
+      deviceButtonRef.current?.focus();
+    }
   };
 
   return (
@@ -118,7 +179,105 @@ export default function SpotifyNowPlaying({
         >
           <FiHeart aria-hidden="true" />
         </button>
+        <button
+          type="button"
+          className="spotify-player-device"
+          ref={deviceButtonRef}
+          onClick={toggleDevices}
+          aria-label="Choose playback device"
+          aria-haspopup="dialog"
+          aria-expanded={devicesOpen}
+          aria-controls="spotify-device-picker"
+        >
+          <FiSpeaker aria-hidden="true" />
+        </button>
       </div>
+
+      {devicesOpen && (
+        <div
+          id="spotify-device-picker"
+          className="spotify-device-picker"
+          role="dialog"
+          aria-label="Playback devices"
+          aria-busy={devicesLoading ? "true" : "false"}
+          ref={devicePickerRef}
+          tabIndex="-1"
+        >
+          <div className="spotify-device-picker-heading">
+            <div>
+              <span>Spotify Connect</span>
+              <strong>Play on a device</strong>
+            </div>
+            <div className="spotify-device-picker-actions">
+              <button
+                type="button"
+                onClick={onRequestDevices}
+                disabled={devicesLoading || Boolean(deviceTransferring)}
+                aria-label="Refresh playback devices"
+              >
+                <FiRefreshCw aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDevicesOpen(false);
+                  deviceButtonRef.current?.focus();
+                }}
+                aria-label="Close playback devices"
+              >
+                <FiX aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <p className="spotify-device-status" role="status" aria-label="Device status">
+            {devicesLoading
+              ? "Finding available devices..."
+              : devices.length
+                ? `${devices.length} ${devices.length === 1 ? "device" : "devices"} available`
+                : "No devices found. Open Spotify on a device and refresh."}
+          </p>
+
+          {devices.length > 0 && (
+            <div className="spotify-device-list">
+              {devices.map((device) => {
+                const transferring = deviceTransferring === device.id;
+                const status = transferring
+                  ? "Switching"
+                  : device.is_restricted
+                    ? "Unavailable"
+                    : device.is_active
+                      ? "Active device"
+                      : "Available";
+                return (
+                  <button
+                    type="button"
+                    className="spotify-device-option"
+                    key={device.id}
+                    onClick={() => chooseDevice(device)}
+                    disabled={Boolean(device.is_restricted || deviceTransferring)}
+                    aria-label={`${device.name || "Spotify device"}, ${device.type || "Device"}, ${status}`}
+                    aria-pressed={Boolean(device.is_active)}
+                  >
+                    <span className="spotify-device-icon"><FiSpeaker aria-hidden="true" /></span>
+                    <span className="spotify-device-copy">
+                      <strong>{device.name || "Spotify device"}</strong>
+                      <span>{device.type || "Device"}</span>
+                    </span>
+                    <span className={`spotify-device-state ${device.is_active ? "active" : ""}`}>
+                      {device.is_active && !transferring && <FiCheck aria-hidden="true" />}
+                      {status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {deviceError && <p className="spotify-device-error" role="alert">{deviceError}</p>}
+          <p className="spotify-device-help">Open Spotify on another device if it is not listed yet.</p>
+        </div>
+      )}
 
       <div className="spotify-player-timeline">
         <span aria-hidden="true">{elapsed}</span>
@@ -143,7 +302,13 @@ export default function SpotifyNowPlaying({
         ) : (
           <span role="status">
             <i className={isReady ? "ready" : ""} aria-hidden="true" />
-            {isReady ? (track ? "Browser playback active" : "Spotify device ready") : "Connecting Spotify player"}
+            {isReady
+              ? isRemoteDevice
+                ? `Playing on ${activeDeviceName || "Spotify device"}`
+                : track
+                  ? "Browser playback active"
+                  : "Spotify device ready"
+              : "Connecting Spotify player"}
           </span>
         )}
       </div>

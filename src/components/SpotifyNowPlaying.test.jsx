@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SpotifyNowPlaying from "./SpotifyNowPlaying";
 
 const track = {
@@ -24,6 +24,16 @@ function renderPlayer(overrides = {}) {
     saved: false,
     savePending: false,
     onToggleSaved: jest.fn(),
+    devices: [
+      { id: "browser-device", name: "Cruz Audio", type: "Computer", is_active: true, is_restricted: false },
+      { id: "living-room", name: "Living Room TV", type: "TV", is_active: false, is_restricted: false },
+      { id: "restricted-device", name: "Restricted speaker", type: "Speaker", is_active: false, is_restricted: true },
+    ],
+    devicesLoading: false,
+    deviceTransferring: "",
+    deviceError: "",
+    onRequestDevices: jest.fn(),
+    onSelectDevice: jest.fn(() => Promise.resolve(true)),
     ...overrides,
   };
   const rendered = render(<SpotifyNowPlaying {...props} />);
@@ -102,4 +112,39 @@ test("stays useful while connected but idle and communicates unavailable playbac
   expect(screen.getByRole("button", { name: /play spotify/i })).toBeDisabled();
   expect(screen.getByRole("slider", { name: /playback position/i })).toBeDisabled();
   expect(screen.getByRole("button", { name: /save to spotify/i })).toBeDisabled();
+});
+
+test("loads available devices and transfers playback from an accessible picker", async () => {
+  const props = renderPlayer();
+
+  fireEvent.click(screen.getByRole("button", { name: /choose playback device/i }));
+
+  expect(props.onRequestDevices).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("dialog", { name: /playback devices/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /cruz audio.*active device/i })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /restricted speaker.*unavailable/i })).toBeDisabled();
+
+  fireEvent.click(screen.getByRole("button", { name: /living room tv/i }));
+
+  await waitFor(() => expect(props.onSelectDevice).toHaveBeenCalledWith(props.devices[1]));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: /playback devices/i })).not.toBeInTheDocument());
+});
+
+test("keeps device loading, empty, and error messages in dedicated live regions", () => {
+  const props = renderPlayer({ devices: [], devicesLoading: true });
+  fireEvent.click(screen.getByRole("button", { name: /choose playback device/i }));
+
+  expect(screen.getByRole("dialog", { name: /playback devices/i })).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByRole("status", { name: /device status/i })).toHaveTextContent("Finding available devices");
+
+  props.rerender(
+    <SpotifyNowPlaying
+      {...props}
+      devices={[]}
+      devicesLoading={false}
+      deviceError="Spotify devices could not be loaded."
+    />
+  );
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Spotify devices could not be loaded.");
 });

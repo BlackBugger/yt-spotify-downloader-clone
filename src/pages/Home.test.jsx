@@ -304,6 +304,13 @@ test("shows playback connection notices visibly", async () => {
   fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
   await screen.findByText("Track 1");
   expect(screen.getByText("1 track")).toBeInTheDocument();
+  await waitFor(() => expect(fetch.mock.calls.some(([url]) => (
+    String(url).startsWith("https://api.spotify.com/v1/me/tracks/contains")
+  ))).toBe(true));
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
   fireEvent.click(screen.getByRole("button", { name: "Play Track 1" }));
 
   const alert = await screen.findByRole("alert");
@@ -471,6 +478,92 @@ test("updates the current track from the bottom player heart control", async () 
     expect.stringContaining("/v1/me/tracks?ids=track-0"),
     expect.objectContaining({ method: "DELETE" }),
   ));
+});
+
+test("lists Spotify devices and transfers playback from the bottom player", async () => {
+  const playlistResponse = deferred();
+  const deviceResponse = deferred();
+  const transferResponse = deferred();
+  mockSpotifyPlayer.deviceId = "browser-device";
+  mockSpotifyPlayer.playerState = {
+    paused: true,
+    track_window: { current_track: tracks[0] },
+  };
+  fetch.mockImplementation((url, options = {}) => {
+    if (url === "/.netlify/functions/spotify-session") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          authenticated: true,
+          accessToken: "short-lived",
+          expiresIn: 3600,
+          profile: { display_name: "Cruz", images: [] },
+        }),
+      });
+    }
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") return playlistResponse.promise;
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) {
+      return Promise.resolve({ ok: true, json: async () => [false] });
+    }
+    if (url === "https://api.spotify.com/v1/me/player/devices") return deviceResponse.promise;
+    if (url === "https://api.spotify.com/v1/me/player" && options.method === "PUT") return transferResponse.promise;
+    if (url === "https://api.spotify.com/v1/me/player/play?device_id=living-room" && options.method === "PUT") {
+      return Promise.resolve({ ok: true, status: 204 });
+    }
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("Cruz");
+  await act(async () => {
+    playlistResponse.resolve({ ok: true, json: async () => ({ items: [] }) });
+    await playlistResponse.promise;
+    await Promise.resolve();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: /choose playback device/i }));
+  await act(async () => {
+    deviceResponse.resolve({
+      ok: true,
+      json: async () => ({
+        devices: [
+          { id: "browser-device", name: "Cruz Audio", type: "Computer", is_active: true, is_restricted: false },
+          { id: "living-room", name: "Living Room TV", type: "TV", is_active: false, is_restricted: false },
+        ],
+      }),
+    });
+    await deviceResponse.promise;
+    await Promise.resolve();
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: /living room tv/i }));
+  expect(screen.getByRole("button", { name: /living room tv.*switching/i })).toBeDisabled();
+  await act(async () => {
+    transferResponse.resolve({ ok: true, status: 204 });
+    await transferResponse.promise;
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    "https://api.spotify.com/v1/me/player",
+    expect.objectContaining({
+      method: "PUT",
+      headers: expect.objectContaining({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ device_ids: ["living-room"] }),
+    }),
+  ));
+  expect(mockSpotifyPlayer.activateElement).not.toHaveBeenCalled();
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: /play track 1/i }));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    "https://api.spotify.com/v1/me/player/play?device_id=living-room",
+    expect.objectContaining({ method: "PUT" }),
+  ));
+  expect(mockSpotifyPlayer.togglePlay).not.toHaveBeenCalled();
 });
 
 test("rolls back a failed heart action and shows the error visibly", async () => {
