@@ -5,6 +5,14 @@ const {
   request,
 } = require("./spotify-utils");
 
+const PROVIDER_TIMEOUT_MS = 5_000;
+const CACHE_TTL_MS = 6 * 60 * 60 * 1_000;
+const CACHE_LIMIT = 250;
+const lyricsCache = new Map();
+const cacheableLyrics = {
+  "Cache-Control": "public, max-age=300, stale-while-revalidate=86400",
+};
+
 function requiredText(value, maximum) {
   const normalized = typeof value === "string" ? value.trim() : "";
   if (!normalized || normalized.length > maximum) return "";
@@ -18,6 +26,35 @@ function normalizedMatch(value) {
     .replace(/[\s,&/+_-]+/g, " ")
     .replace(/[^\p{L}\p{N} ]/gu, "")
     .trim();
+}
+
+function cacheKey({ track, artist, album, duration }) {
+  return [
+    normalizedMatch(track),
+    normalizedMatch(artist),
+    normalizedMatch(album),
+    duration,
+  ].join("\u001f");
+}
+
+function cachedLyrics(key) {
+  const cached = lyricsCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    lyricsCache.delete(key);
+    return null;
+  }
+  return cached.record;
+}
+
+function rememberLyrics(key, record) {
+  if (lyricsCache.size >= CACHE_LIMIT) {
+    lyricsCache.delete(lyricsCache.keys().next().value);
+  }
+  lyricsCache.set(key, {
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    record,
+  });
 }
 
 function selectRecording(records, { track, artist, album, duration }) {
@@ -55,7 +92,7 @@ function lyricsResponse(data) {
     plainLyrics: typeof data?.plainLyrics === "string" ? data.plainLyrics : "",
     syncedLyrics: typeof data?.syncedLyrics === "string" ? data.syncedLyrics : "",
     source: "LRCLIB",
-  }, noStore);
+  }, cacheableLyrics);
 }
 
 function providerBusy(response) {
@@ -68,6 +105,23 @@ function providerBusy(response) {
       ...(/^\d{1,5}$/.test(retryAfter || "") ? { "Retry-After": retryAfter } : {}),
     },
   );
+}
+
+async function providerLookup(url, signature, providerHeaders, multiple) {
+  try {
+    const response = await request(url, { headers: providerHeaders }, PROVIDER_TIMEOUT_MS);
+    if (response.status === 429) return { kind: "busy", response };
+    if (response.status === 404) return { kind: "miss" };
+    if (!response.ok) return { kind: "failure" };
+
+    const payload = await response.json();
+    const selected = selectRecording(multiple ? payload : [payload], signature);
+    return selected ? { kind: "match", record: selected } : { kind: "miss" };
+  } catch (lookupError) {
+    return {
+      kind: lookupError.code === "UPSTREAM_TIMEOUT" ? "timeout" : "failure",
+    };
+  }
 }
 
 exports.handler = async (event) => {
@@ -92,6 +146,10 @@ exports.handler = async (event) => {
   }
 
   const signature = { track, artist, album, duration };
+  const signatureKey = cacheKey(signature);
+  const cached = cachedLyrics(signatureKey);
+  if (cached) return lyricsResponse(cached);
+
   const providerHeaders = {
     "User-Agent": "CruzAudio/0.1.0 (https://cruz-yt-mp3.netlify.app)",
   };
@@ -102,18 +160,6 @@ exports.handler = async (event) => {
     album_name: album,
   }).toString();
 
-  try {
-    const searchResponse = await request(searchUrl, { headers: providerHeaders }, 15_000);
-    if (searchResponse.status === 429) return providerBusy(searchResponse);
-    if (searchResponse.ok) {
-      const records = await searchResponse.json();
-      const selected = selectRecording(records, signature);
-      if (selected) return lyricsResponse(selected);
-    }
-  } catch {
-    // Fall back sequentially to LRCLIB's exact-signature endpoint.
-  }
-
   const exactUrl = new URL("https://lrclib.net/api/get");
   exactUrl.search = new URLSearchParams({
     track_name: track,
@@ -122,25 +168,31 @@ exports.handler = async (event) => {
     duration: String(duration),
   }).toString();
 
-  try {
-    const exactResponse = await request(exactUrl, { headers: providerHeaders }, 15_000);
-    if (exactResponse.status === 404) {
-      return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
-    }
-    if (exactResponse.status === 429) return providerBusy(exactResponse);
-    if (!exactResponse.ok) throw new Error("lyrics");
-    const exactRecord = await exactResponse.json();
-    const selected = selectRecording([exactRecord], signature);
-    if (!selected) {
-      return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
-    }
+  const [searchResult, exactResult] = await Promise.all([
+    providerLookup(searchUrl, signature, providerHeaders, true),
+    providerLookup(exactUrl, signature, providerHeaders, false),
+  ]);
+
+  const selected = exactResult.record || searchResult.record;
+  if (selected) {
+    rememberLyrics(signatureKey, selected);
     return lyricsResponse(selected);
-  } catch (exactError) {
-    const status = exactError.code === "UPSTREAM_TIMEOUT" ? 504 : 502;
-    return json(status, {
-      error: status === 504
-        ? "The lyrics service took too long to respond."
-        : "Lyrics are temporarily unavailable.",
-    }, noStore);
   }
+
+  const busy = exactResult.kind === "busy" ? exactResult : searchResult;
+  if (busy.kind === "busy") return providerBusy(busy.response);
+
+  if (exactResult.kind === "miss" && searchResult.kind !== "timeout") {
+    return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
+  }
+
+  const timedOut = exactResult.kind === "timeout" || searchResult.kind === "timeout";
+  const status = timedOut ? 504 : 502;
+  return json(status, {
+    error: timedOut
+      ? "The lyrics service took too long to respond."
+      : "Lyrics are temporarily unavailable.",
+  }, noStore);
 };
+
+exports.resetLyricsCache = () => lyricsCache.clear();

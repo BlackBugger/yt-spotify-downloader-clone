@@ -16,6 +16,7 @@ const {
 beforeEach(() => {
   resetCatalogTokenCache();
   resetRateLimits();
+  lyrics.resetLyricsCache();
   process.env.SPOTIFY_CLIENT_ID = "test-id";
   process.env.SPOTIFY_CLIENT_SECRET = "test-secret";
   process.env.SPOTIFY_ALLOWED_ORIGINS = "https://preview.example.net";
@@ -130,29 +131,40 @@ test("catalog searches reuse a valid Spotify client token", async () => {
 });
 
 test("lyrics lookup sends an exact track signature to LRCLIB with client identification", async () => {
-  global.fetch = jest.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ([
-      {
-        trackName: "Neon Sky",
-        artistName: "Cruz",
-        albumName: "After Dark",
-        duration: 410,
-        instrumental: false,
-        plainLyrics: "Wrong recording",
-        syncedLyrics: "[00:01.00]Wrong recording",
-      },
-      {
-        trackName: "Neon Sky",
-        artistName: "Cruz",
-        albumName: "After Dark",
-        duration: 182.8,
-        instrumental: false,
-        plainLyrics: "A quiet verse",
-        syncedLyrics: "[00:01.00]A quiet verse",
-      },
-    ]),
+  global.fetch = jest.fn(async (url) => {
+    if (url.pathname === "/api/get") {
+      return {
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+        json: async () => ({}),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ([
+        {
+          trackName: "Neon Sky",
+          artistName: "Cruz",
+          albumName: "After Dark",
+          duration: 410,
+          instrumental: false,
+          plainLyrics: "Wrong recording",
+          syncedLyrics: "[00:01.00]Wrong recording",
+        },
+        {
+          trackName: "Neon Sky",
+          artistName: "Cruz",
+          albumName: "After Dark",
+          duration: 182.8,
+          instrumental: false,
+          plainLyrics: "A quiet verse",
+          syncedLyrics: "[00:01.00]A quiet verse",
+        },
+      ]),
+    };
   });
 
   const response = await lyrics.handler({
@@ -184,6 +196,7 @@ test("lyrics lookup sends an exact track signature to LRCLIB with client identif
     syncedLyrics: "[00:01.00]A quiet verse",
     source: "LRCLIB",
   });
+  expect(response.headers["Cache-Control"]).toContain("max-age=300");
 });
 
 test("lyrics lookup rejects incomplete requests without contacting the provider", async () => {
@@ -197,15 +210,17 @@ test("lyrics lookup rejects incomplete requests without contacting the provider"
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
-test("lyrics lookup falls back to the exact endpoint when provider search fails", async () => {
-  global.fetch = jest.fn()
-    .mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      headers: { get: () => null },
-      json: async () => ({}),
-    })
-    .mockResolvedValueOnce({
+test("lyrics lookup returns the exact endpoint match when provider search fails", async () => {
+  global.fetch = jest.fn(async (url) => {
+    if (url.pathname === "/api/search") {
+      return {
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        json: async () => ({}),
+      };
+    }
+    return {
       ok: true,
       status: 200,
       headers: { get: () => null },
@@ -218,7 +233,8 @@ test("lyrics lookup falls back to the exact endpoint when provider search fails"
         plainLyrics: "Fallback verse",
         syncedLyrics: "[00:01.00]Fallback verse",
       }),
-    });
+    };
+  });
 
   const response = await lyrics.handler({
     httpMethod: "GET",
@@ -233,14 +249,107 @@ test("lyrics lookup falls back to the exact endpoint when provider search fails"
 
   expect(response.statusCode).toBe(200);
   expect(global.fetch).toHaveBeenCalledTimes(2);
-  expect(global.fetch.mock.calls[1][0]).toEqual(expect.objectContaining({
-    pathname: "/api/get",
-    search: expect.stringContaining("duration=182"),
-  }));
+  expect(global.fetch.mock.calls.map(([url]) => url.pathname)).toEqual(
+    expect.arrayContaining(["/api/search", "/api/get"]),
+  );
+  expect(global.fetch.mock.calls.find(([url]) => url.pathname === "/api/get")[0]).toEqual(
+    expect.objectContaining({
+      pathname: "/api/get",
+      search: expect.stringContaining("duration=182"),
+    }),
+  );
   expect(JSON.parse(response.body)).toMatchObject({
     syncedLyrics: "[00:01.00]Fallback verse",
     source: "LRCLIB",
   });
+});
+
+test("lyrics lookup starts search and exact requests concurrently", async () => {
+  let resolveSearch;
+  let resolveExact;
+  global.fetch = jest.fn((url) => new Promise((resolve) => {
+    if (url.pathname === "/api/search") resolveSearch = resolve;
+    if (url.pathname === "/api/get") resolveExact = resolve;
+  }));
+
+  const pendingResponse = lyrics.handler({
+    httpMethod: "GET",
+    headers: { "x-nf-client-connection-ip": "203.0.113.9" },
+    queryStringParameters: {
+      track: "Neon Sky",
+      artist: "Cruz",
+      album: "After Dark",
+      duration: "182",
+    },
+  });
+  await Promise.resolve();
+
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+  resolveSearch({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      json: async () => ({}),
+  });
+  resolveExact({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: async () => ({
+      trackName: "Neon Sky",
+      artistName: "Cruz",
+      albumName: "After Dark",
+      duration: 182,
+      instrumental: false,
+      plainLyrics: "Parallel verse",
+      syncedLyrics: "[00:01.00]Parallel verse",
+    }),
+  });
+
+  const response = await pendingResponse;
+  expect(response.statusCode).toBe(200);
+  expect(JSON.parse(response.body).syncedLyrics).toBe("[00:01.00]Parallel verse");
+});
+
+test("lyrics lookup reuses a successful exact-signature cache entry", async () => {
+  global.fetch = jest.fn(async (url) => {
+    if (url.pathname === "/api/get") {
+      return {
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+        json: async () => ({}),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ([{
+        trackName: "Neon Sky",
+        artistName: "Cruz",
+        albumName: "After Dark",
+        duration: 182,
+        instrumental: false,
+        plainLyrics: "Cached verse",
+        syncedLyrics: "[00:01.00]Cached verse",
+      }]),
+    };
+  });
+  const event = {
+    httpMethod: "GET",
+    headers: { "x-nf-client-connection-ip": "203.0.113.9" },
+    queryStringParameters: {
+      track: "Neon Sky",
+      artist: "Cruz",
+      album: "After Dark",
+      duration: "182",
+    },
+  };
+
+  expect((await lyrics.handler(event)).statusCode).toBe(200);
+  expect((await lyrics.handler(event)).statusCode).toBe(200);
+  expect(global.fetch).toHaveBeenCalledTimes(2);
 });
 
 test("lyrics lookup translates provider misses into a safe unavailable response", async () => {
@@ -267,19 +376,23 @@ test("lyrics lookup translates provider misses into a safe unavailable response"
 });
 
 test("lyrics lookup treats search results for a different recording as unavailable", async () => {
-  global.fetch = jest.fn().mockResolvedValue({
+  global.fetch = jest.fn(async (url) => ({
     ok: true,
     status: 200,
-    json: async () => ([{
-      trackName: "Neon Sky",
-      artistName: "Cruz",
-      albumName: "After Dark",
-      duration: 420,
-      instrumental: false,
-      plainLyrics: "Wrong recording",
-      syncedLyrics: "[00:01.00]Wrong recording",
-    }]),
-  });
+    headers: { get: () => null },
+    json: async () => {
+      const record = {
+        trackName: "Neon Sky",
+        artistName: "Cruz",
+        albumName: "After Dark",
+        duration: 420,
+        instrumental: false,
+        plainLyrics: "Wrong recording",
+        syncedLyrics: "[00:01.00]Wrong recording",
+      };
+      return url.pathname === "/api/search" ? [record] : record;
+    },
+  }));
 
   const response = await lyrics.handler({
     httpMethod: "GET",
