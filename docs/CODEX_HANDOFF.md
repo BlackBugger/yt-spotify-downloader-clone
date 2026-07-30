@@ -38,7 +38,7 @@ Cruz Audio has two independent modes:
 - The centered bottom player uses a neon Spotify-inspired treatment and remains usable at exactly 390px.
 - The bottom player exposes a synchronized Spotify save/remove heart with optimistic pending state, rollback, and saved-status loading for the current track.
 - The bottom player exposes a dedicated microphone shortcut that focuses and scrolls to the active track's Lyrics section.
-- The Lyrics section matches the exact track, artist, album, and duration through a rate-limited server-side LRCLIB lookup; no browser credential or new secret is required.
+- The Lyrics section matches the exact track, artist, album, and duration through a rate-limited server-side LRCLIB lookup; the documented search and exact-signature endpoints are used sequentially as fallbacks, and no browser credential or new secret is required.
 - Synchronized lyrics highlight and follow the current line, expose timestamped tap-to-seek controls through the existing browser/remote playback target, and allow follow mode to be toggled.
 - Untimed, instrumental, loading, unavailable, retry, provider-credit, and artwork-fallback states remain contained within the dedicated Lyrics region.
 - Lyrics request ordering prevents a late response for an older track or logged-out session from replacing the current state. Auto-follow scrolls only the lyric viewport and does not move the surrounding page.
@@ -60,7 +60,7 @@ Cruz Audio has two independent modes:
 
 ## Validation observed on 2026-07-30
 
-- Complete Jest suite: 10 suites, 84 tests passed, clean output.
+- Complete Jest suite: 10 suites, 85 tests passed, clean output.
 - Production CRA build: compiled successfully. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
 - All 9 `netlify/functions/*.js` files passed `node --check`.
 - Runtime-fetch fallback resolved the bundled `node-fetch` path.

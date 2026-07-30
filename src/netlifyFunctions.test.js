@@ -197,6 +197,52 @@ test("lyrics lookup rejects incomplete requests without contacting the provider"
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
+test("lyrics lookup falls back to the exact endpoint when provider search fails", async () => {
+  global.fetch = jest.fn()
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      json: async () => ({}),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        trackName: "Neon Sky",
+        artistName: "Cruz",
+        albumName: "After Dark",
+        duration: 182,
+        instrumental: false,
+        plainLyrics: "Fallback verse",
+        syncedLyrics: "[00:01.00]Fallback verse",
+      }),
+    });
+
+  const response = await lyrics.handler({
+    httpMethod: "GET",
+    headers: { "x-nf-client-connection-ip": "203.0.113.9" },
+    queryStringParameters: {
+      track: "Neon Sky",
+      artist: "Cruz",
+      album: "After Dark",
+      duration: "182",
+    },
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+  expect(global.fetch.mock.calls[1][0]).toEqual(expect.objectContaining({
+    pathname: "/api/get",
+    search: expect.stringContaining("duration=182"),
+  }));
+  expect(JSON.parse(response.body)).toMatchObject({
+    syncedLyrics: "[00:01.00]Fallback verse",
+    source: "LRCLIB",
+  });
+});
+
 test("lyrics lookup translates provider misses into a safe unavailable response", async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: false,

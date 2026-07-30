@@ -49,6 +49,27 @@ function selectRecording(records, { track, artist, album, duration }) {
     .sort((first, second) => first.score - second.score)[0]?.record;
 }
 
+function lyricsResponse(data) {
+  return json(200, {
+    instrumental: Boolean(data?.instrumental),
+    plainLyrics: typeof data?.plainLyrics === "string" ? data.plainLyrics : "",
+    syncedLyrics: typeof data?.syncedLyrics === "string" ? data.syncedLyrics : "",
+    source: "LRCLIB",
+  }, noStore);
+}
+
+function providerBusy(response) {
+  const retryAfter = response.headers?.get?.("retry-after");
+  return json(
+    503,
+    { error: "The lyrics service is busy. Try again shortly." },
+    {
+      ...noStore,
+      ...(/^\d{1,5}$/.test(retryAfter || "") ? { "Retry-After": retryAfter } : {}),
+    },
+  );
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed." }, noStore);
 
@@ -70,47 +91,52 @@ exports.handler = async (event) => {
     );
   }
 
-  const url = new URL("https://lrclib.net/api/search");
-  url.search = new URLSearchParams({
+  const signature = { track, artist, album, duration };
+  const providerHeaders = {
+    "User-Agent": "CruzAudio/0.1.0 (https://cruz-yt-mp3.netlify.app)",
+  };
+  const searchUrl = new URL("https://lrclib.net/api/search");
+  searchUrl.search = new URLSearchParams({
     track_name: track,
     artist_name: artist,
     album_name: album,
   }).toString();
 
   try {
-    const response = await request(url, {
-      headers: {
-        "User-Agent": "CruzAudio/0.1.0 (https://cruz-yt-mp3.netlify.app)",
-      },
-    }, 15_000);
-    if (response.status === 404) {
+    const searchResponse = await request(searchUrl, { headers: providerHeaders }, 15_000);
+    if (searchResponse.status === 429) return providerBusy(searchResponse);
+    if (searchResponse.ok) {
+      const records = await searchResponse.json();
+      const selected = selectRecording(records, signature);
+      if (selected) return lyricsResponse(selected);
+    }
+  } catch {
+    // Fall back sequentially to LRCLIB's exact-signature endpoint.
+  }
+
+  const exactUrl = new URL("https://lrclib.net/api/get");
+  exactUrl.search = new URLSearchParams({
+    track_name: track,
+    artist_name: artist,
+    album_name: album,
+    duration: String(duration),
+  }).toString();
+
+  try {
+    const exactResponse = await request(exactUrl, { headers: providerHeaders }, 15_000);
+    if (exactResponse.status === 404) {
       return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
     }
-    if (response.status === 429) {
-      const retryAfter = response.headers?.get?.("retry-after");
-      return json(
-        503,
-        { error: "The lyrics service is busy. Try again shortly." },
-        {
-          ...noStore,
-          ...(/^\d{1,5}$/.test(retryAfter || "") ? { "Retry-After": retryAfter } : {}),
-        },
-      );
-    }
-    if (!response.ok) throw new Error("lyrics");
-    const records = await response.json();
-    const data = selectRecording(records, { track, artist, album, duration });
-    if (!data) {
+    if (exactResponse.status === 429) return providerBusy(exactResponse);
+    if (!exactResponse.ok) throw new Error("lyrics");
+    const exactRecord = await exactResponse.json();
+    const selected = selectRecording([exactRecord], signature);
+    if (!selected) {
       return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
     }
-    return json(200, {
-      instrumental: Boolean(data?.instrumental),
-      plainLyrics: typeof data?.plainLyrics === "string" ? data.plainLyrics : "",
-      syncedLyrics: typeof data?.syncedLyrics === "string" ? data.syncedLyrics : "",
-      source: "LRCLIB",
-    }, noStore);
-  } catch (lyricsError) {
-    const status = lyricsError.code === "UPSTREAM_TIMEOUT" ? 504 : 502;
+    return lyricsResponse(selected);
+  } catch (exactError) {
+    const status = exactError.code === "UPSTREAM_TIMEOUT" ? 504 : 502;
     return json(status, {
       error: status === 504
         ? "The lyrics service took too long to respond."
