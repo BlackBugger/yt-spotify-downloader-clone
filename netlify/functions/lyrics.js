@@ -11,6 +11,44 @@ function requiredText(value, maximum) {
   return normalized;
 }
 
+function normalizedMatch(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[\s,&/+_-]+/g, " ")
+    .replace(/[^\p{L}\p{N} ]/gu, "")
+    .trim();
+}
+
+function selectRecording(records, { track, artist, album, duration }) {
+  const expectedTrack = normalizedMatch(track);
+  const expectedArtist = normalizedMatch(artist);
+  const expectedAlbum = normalizedMatch(album);
+  return (Array.isArray(records) ? records : [])
+    .map((record) => {
+      const candidateTrack = normalizedMatch(record?.trackName);
+      const candidateArtist = normalizedMatch(record?.artistName);
+      const candidateAlbum = normalizedMatch(record?.albumName);
+      const durationDifference = Math.abs(Number(record?.duration) - duration);
+      const artistMatches = candidateArtist === expectedArtist
+        || candidateArtist.includes(expectedArtist)
+        || expectedArtist.includes(candidateArtist);
+      if (
+        candidateTrack !== expectedTrack
+        || !candidateArtist
+        || !artistMatches
+        || !Number.isFinite(durationDifference)
+        || durationDifference > 2
+      ) return null;
+      return {
+        record,
+        score: durationDifference + (candidateAlbum === expectedAlbum ? 0 : 0.25),
+      };
+    })
+    .filter(Boolean)
+    .sort((first, second) => first.score - second.score)[0]?.record;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed." }, noStore);
 
@@ -32,12 +70,11 @@ exports.handler = async (event) => {
     );
   }
 
-  const url = new URL("https://lrclib.net/api/get");
+  const url = new URL("https://lrclib.net/api/search");
   url.search = new URLSearchParams({
     track_name: track,
     artist_name: artist,
     album_name: album,
-    duration: String(duration),
   }).toString();
 
   try {
@@ -45,7 +82,7 @@ exports.handler = async (event) => {
       headers: {
         "User-Agent": "CruzAudio/0.1.0 (https://cruz-yt-mp3.netlify.app)",
       },
-    });
+    }, 15_000);
     if (response.status === 404) {
       return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
     }
@@ -61,7 +98,11 @@ exports.handler = async (event) => {
       );
     }
     if (!response.ok) throw new Error("lyrics");
-    const data = await response.json();
+    const records = await response.json();
+    const data = selectRecording(records, { track, artist, album, duration });
+    if (!data) {
+      return json(404, { error: "Lyrics are not available for this track yet." }, noStore);
+    }
     return json(200, {
       instrumental: Boolean(data?.instrumental),
       plainLyrics: typeof data?.plainLyrics === "string" ? data.plainLyrics : "",
