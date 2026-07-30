@@ -13,9 +13,9 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 ## Current status
 
 - The dual-mode Spotify/security implementation was committed and pushed by Ody before this reconciliation.
-- The existing Deploy Preview is built from the PR branch, not production.
+- The Deploy Preview is built from the PR branch, not production.
 - Codex completed the remaining local UI resilience, accessibility feedback, popup handling, artwork fallback, player error recovery, functional Library actions, centered transport player, and 390px work described below.
-- The final branch commit and Netlify rebuild still need to be confirmed before treating the public preview as evidence for these last changes.
+- Netlify built implementation commit `b6bed65ac1318e63f5ff9aa0c15aae8d1861d015` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
 - PR #1 remains a draft. Nothing has been merged to `main` or deployed to production.
 
 ## Product contract
@@ -58,16 +58,17 @@ Cruz Audio has two independent modes:
 - A scan of 29 browser source files found zero references to privileged credential variables and zero access/refresh-token storage references.
 - Local public-mode 390px inspection: no horizontal overflow or out-of-bounds elements.
 - Local connected-mode 390px inspection: no horizontal overflow; brand/control gap 68px; four track actions fit in two rows inside the first result card.
+- Deployed-preview public search for `SZA`: 12 tracks returned and catalog status changed from `Ready` to `Online`.
+- Deployed-preview connected Library: 20 playlists, 20 albums, and 20 saved tracks loaded; cards exposed working play, open-in-Spotify, and saved-track removal controls.
+- Deployed-preview playback: `Snooze` started from the direct Play gesture; the player reported active playback with previous, pause, next, seek, elapsed-time, and 3:21 duration controls.
+- Deployed-preview browser console: no warnings or errors; no visible invalid-token or playback-error alert after search and playback.
+- Deployed-preview exact 390px check: no horizontal overflow; the 355px-wide player stayed within the viewport; all four actions on the first result stayed within the card in a two-column layout.
 
 ## Remaining release gates
 
-1. Confirm the current `agent/cruz-ui-refresh-20260724` head is pushed without including unrelated files.
-2. Wait for Netlify to build the pushed commit.
-3. Verify the deployed preview at desktop and exactly 390px; do not use a stale preview as evidence.
-4. Confirm the public catalog flow against configured preview variables.
-5. Update the draft PR description with the final scope and observed validation.
-6. Keep PR #1 draft until real Spotify OAuth/playback prerequisites are satisfied or explicitly deferred.
-7. Do not merge or publish production without a separate explicit instruction.
+1. Keep PR #1 draft until the owner decides the implementation is ready for formal review.
+2. Review Spotify policy before commercial streaming use.
+3. Do not merge or publish production without a separate explicit instruction.
 
 ## Human/external prerequisites
 
