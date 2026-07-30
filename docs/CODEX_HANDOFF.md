@@ -1,6 +1,6 @@
 # Cruz Audio implementation handoff
 
-**Last reconciled by Codex:** 2026-07-29
+**Last reconciled by Codex:** 2026-07-30
 **Repository:** `BlackBugger/yt-spotify-downloader-clone`
 **Local checkout:** `D:/AI-Projects/yt-spotify-downloader-clone`
 **Branch:** `agent/cruz-ui-refresh-20260724`
@@ -15,7 +15,7 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 - The dual-mode Spotify/security implementation was committed and pushed by Ody before this reconciliation.
 - The Deploy Preview is built from the PR branch, not production.
 - Codex completed the remaining local UI resilience, accessibility feedback, popup handling, artwork fallback, player error recovery, functional Library actions, centered transport player, and 390px work described below.
-- Netlify built implementation commit `b6bed65ac1318e63f5ff9aa0c15aae8d1861d015` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
+- Netlify built implementation commit `3a2a21dd7f4f2bdf2d12e5d39387e9a8722888e2` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
 - PR #1 remains a draft. Nothing has been merged to `main` or deployed to production.
 
 ## Product contract
@@ -36,6 +36,7 @@ Cruz Audio has two independent modes:
 - Spotify user requests retry once after an expired access token by refreshing the memory-only session; concurrent refreshes are deduplicated.
 - Spotify Web Playback SDK single-load and single-player lifecycle, device targeting, token refresh, direct-gesture `activateElement()`, player state, play/pause, previous/next, seeking, elapsed/duration display, normalized errors, and disconnect handling.
 - The centered bottom player uses a neon Spotify-inspired treatment and remains usable at exactly 390px.
+- The bottom player exposes a synchronized Spotify save/remove heart with optimistic pending state, rollback, and saved-status loading for the current track.
 - SDK authentication errors trigger one session refresh, raw token errors are not shown to users, and a healthy player-state event clears stale playback errors.
 - OAuth callback redirects are absolute to the trusted app origin, and leftover OAuth query parameters are removed from the browser address bar.
 - Node 16-compatible runtime-fetch fallback and Netlify multi-cookie response compatibility.
@@ -45,24 +46,25 @@ Cruz Audio has two independent modes:
 - YouTube matching opens its placeholder tab directly from the user gesture, avoiding common popup blockers.
 - Broken result and library artwork falls back cleanly.
 - Spotify SDK autoplay and device-disconnect failures surface visibly.
-- Connected mode at exactly 390px keeps the brand and controls separated, hides only the redundant visual catalog label, and lays four track actions out as a two-column grid.
+- A completed search collapses the large hero into a compact top search state and renders matches immediately below it, before the connected Library.
+- Result cards use four equal icon-only actions with accessible labels and native tooltips; connected mode keeps them in one aligned row at exactly 390px.
 - Retired legacy dashboard components remain unreachable from the active route.
 
-## Validation observed on 2026-07-29
+## Validation observed on 2026-07-30
 
-- Complete Jest suite: 8 suites, 63 tests passed, clean output.
+- Complete Jest suite: 8 suites, 68 tests passed, clean output.
 - Production CRA build: compiled successfully. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
 - All 8 `netlify/functions/*.js` files passed `node --check`.
 - Runtime-fetch fallback resolved the bundled `node-fetch` path.
 - `git diff --check` passed apart from Git's local LF/CRLF conversion notices.
 - A scan of 29 browser source files found zero references to privileged credential variables and zero access/refresh-token storage references.
 - Local public-mode 390px inspection: no horizontal overflow or out-of-bounds elements.
-- Local connected-mode 390px inspection: no horizontal overflow; brand/control gap 68px; four track actions fit in two rows inside the first result card.
-- Deployed-preview public search for `SZA`: 12 tracks returned and catalog status changed from `Ready` to `Online`.
+- Connected-mode 390px inspection: no horizontal overflow; the authenticated header fit without collision; four 42px track actions fit in one row inside the first result card.
+- Deployed-preview connected search for `Marilag`: 12 tracks returned, the large hero collapsed, the compact search remained at the top, and results rendered before the Library.
 - Deployed-preview connected Library: 20 playlists, 20 albums, and 20 saved tracks loaded; cards exposed working play, open-in-Spotify, and saved-track removal controls.
-- Deployed-preview playback: `Snooze` started from the direct Play gesture; the player reported active playback with previous, pause, next, seek, elapsed-time, and 3:21 duration controls.
+- Prior deployed-preview playback regression (unchanged by this layout pass): `Snooze` started from the direct Play gesture; the player reported active playback with previous, pause, next, seek, elapsed-time, and 3:21 duration controls.
 - Deployed-preview browser console: no warnings or errors; no visible invalid-token or playback-error alert after search and playback.
-- Deployed-preview exact 390px check: no horizontal overflow; the 355px-wide player stayed within the viewport; all four actions on the first result stayed within the card in a two-column layout.
+- Deployed-preview exact 390px check: no horizontal overflow; results began at the compact hero boundary; all four 42px actions stayed in one row inside the first card; the Library followed the results; and the player heart was present.
 
 ## Remaining release gates
 
