@@ -15,6 +15,7 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 - The dual-mode Spotify/security implementation was committed and pushed by Ody before this reconciliation.
 - The Deploy Preview is built from the PR branch, not production.
 - Codex completed the remaining local UI resilience, accessibility feedback, popup handling, artwork fallback, player error recovery, functional Library actions, centered transport player, and 390px work described below.
+- Codex committed and pushed the accessible bottom-player volume slider in `d7d631bdd057d6b40161ac5af676254c20aca3e6`. GitHub's Netlify check succeeded, and the Deploy Preview bundle was verified to contain both the visible volume control and targeted Spotify Connect volume handling.
 - Netlify built interactive-lyrics implementation `c471ecbed246694a9686ee3aeaba0578a4591fd4` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
 - PR #1 remains a draft. Nothing has been merged to `main` or deployed to production.
 
@@ -36,6 +37,7 @@ Cruz Audio has two independent modes:
 - Spotify user requests retry once after an expired access token by refreshing the memory-only session; concurrent refreshes are deduplicated.
 - Spotify Web Playback SDK single-load and single-player lifecycle, device targeting, token refresh, direct-gesture `activateElement()`, player state, play/pause, previous/next, seeking, elapsed/duration display, normalized errors, and disconnect handling.
 - The centered bottom player uses a neon Spotify-inspired treatment and remains usable at exactly 390px.
+- The bottom player exposes the active output's volume with an accessible percentage slider. Browser playback uses the existing Web Playback SDK player's `getVolume()`/`setVolume()` methods without recreating the player; selected Spotify Connect outputs use the targeted Web API volume endpoint and respect `supports_volume`.
 - The bottom player exposes a synchronized Spotify save/remove heart with optimistic pending state, rollback, and saved-status loading for the current track.
 - The bottom player exposes a dedicated microphone shortcut that focuses and scrolls to the active track's Lyrics section.
 - The Lyrics section matches the exact track, artist, album, and duration through a rate-limited server-side LRCLIB lookup; the documented search and exact-signature endpoints are used sequentially as fallbacks, and no browser credential or new secret is required.
@@ -61,7 +63,9 @@ Cruz Audio has two independent modes:
 ## Validation observed on 2026-07-30
 
 - Complete Jest suite: 10 suites, 85 tests passed, clean output.
+- Local volume-control regression after the deployed-preview validation: 10 suites, 86 tests passed, clean output.
 - Production CRA build: compiled successfully. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
+- The local volume-control production build compiled successfully using the repository's documented Windows ESLint-cache workaround. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
 - All 9 `netlify/functions/*.js` files passed `node --check`.
 - Runtime-fetch fallback resolved the bundled `node-fetch` path.
 - `git diff --check` passed apart from Git's local LF/CRLF conversion notices.
@@ -79,6 +83,8 @@ Cruz Audio has two independent modes:
 - Deployed-preview `Marilag` lyrics lookup returned both synchronized and plain LRCLIB lyrics for the exact 2:37 recording.
 - Live browser playback advanced the active lyric line; selecting a later timestamp sought the existing Spotify player; Follow could be disabled and re-enabled; and the player microphone shortcut focused `#spotify-lyrics`.
 - Deployed-preview exact 390px lyrics check: 390px CSS viewport, no horizontal overflow, a 351px Lyrics panel inside the viewport, and six 44px transport targets in one row.
+- Local connected-mode volume QA at exactly 390px: the 355px by 214px player stayed inside the viewport; all six transport controls remained 44px targets; the enabled 257px volume range showed the SDK's 65% value; no page element crossed the viewport boundary; and browser diagnostics contained no warnings or errors.
+- Browser and remote-output volume routing, rollback, percentage state, and single-player preservation were verified through regression tests rather than changing the owner's real Spotify volume.
 - Auto-follow remained anchored with the Lyrics section 24px from the viewport top while the active line advanced; only the internal lyric list scrolled.
 - The live empty-search error remained available, and browser diagnostics contained no console warnings or errors after search, playback, lyrics loading, seeking, follow toggling, and responsive checks.
 
