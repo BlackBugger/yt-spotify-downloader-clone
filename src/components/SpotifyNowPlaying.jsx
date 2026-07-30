@@ -3,6 +3,7 @@ import {
   FiCheck,
   FiDisc,
   FiHeart,
+  FiMic,
   FiPause,
   FiPlay,
   FiRefreshCw,
@@ -38,6 +39,7 @@ export default function SpotifyNowPlaying({
   saved,
   savePending,
   onToggleSaved,
+  onOpenLyrics,
   devices = [],
   devicesLoading,
   deviceTransferring,
@@ -178,6 +180,15 @@ export default function SpotifyNowPlaying({
           aria-busy={savePending ? "true" : undefined}
         >
           <FiHeart aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="spotify-player-lyrics"
+          onClick={onOpenLyrics}
+          disabled={!track || !onOpenLyrics}
+          aria-label={track ? `Open lyrics for ${track.name}` : "Open lyrics"}
+        >
+          <FiMic aria-hidden="true" />
         </button>
         <button
           type="button"

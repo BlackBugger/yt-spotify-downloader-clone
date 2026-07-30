@@ -1,6 +1,7 @@
 const callback = require("../netlify/functions/spotify-callback");
 const catalog = require("../netlify/functions/catalog-search");
 const convert = require("../netlify/functions/convert-mp3");
+const lyrics = require("../netlify/functions/lyrics");
 const session = require("../netlify/functions/spotify-session");
 const youtube = require("../netlify/functions/youtube-match");
 const {
@@ -126,4 +127,80 @@ test("catalog searches reuse a valid Spotify client token", async () => {
   expect((await catalog.handler(event("Drake"))).statusCode).toBe(200);
   const tokenCalls = global.fetch.mock.calls.filter(([url]) => String(url).includes("accounts.spotify.com/api/token"));
   expect(tokenCalls).toHaveLength(1);
+});
+
+test("lyrics lookup sends an exact track signature to LRCLIB with client identification", async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      instrumental: false,
+      plainLyrics: "A quiet verse",
+      syncedLyrics: "[00:01.00]A quiet verse",
+    }),
+  });
+
+  const response = await lyrics.handler({
+    httpMethod: "GET",
+    headers: { "x-nf-client-connection-ip": "203.0.113.9" },
+    queryStringParameters: {
+      track: "Neon Sky",
+      artist: "Cruz",
+      album: "After Dark",
+      duration: "182",
+    },
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.objectContaining({
+      origin: "https://lrclib.net",
+      pathname: "/api/get",
+      search: expect.stringContaining("track_name=Neon+Sky"),
+    }),
+    expect.objectContaining({
+      headers: expect.objectContaining({ "User-Agent": expect.stringContaining("CruzAudio") }),
+      signal: expect.any(Object),
+    }),
+  );
+  expect(JSON.parse(response.body)).toEqual({
+    instrumental: false,
+    plainLyrics: "A quiet verse",
+    syncedLyrics: "[00:01.00]A quiet verse",
+    source: "LRCLIB",
+  });
+});
+
+test("lyrics lookup rejects incomplete requests without contacting the provider", async () => {
+  const response = await lyrics.handler({
+    httpMethod: "GET",
+    headers: { "x-nf-client-connection-ip": "203.0.113.9" },
+    queryStringParameters: { track: "Neon Sky" },
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+test("lyrics lookup translates provider misses into a safe unavailable response", async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: false,
+    status: 404,
+    headers: { get: () => null },
+    json: async () => ({}),
+  });
+
+  const response = await lyrics.handler({
+    httpMethod: "GET",
+    headers: { "x-nf-client-connection-ip": "203.0.113.9" },
+    queryStringParameters: {
+      track: "Neon Sky",
+      artist: "Cruz",
+      album: "After Dark",
+      duration: "182",
+    },
+  });
+
+  expect(response.statusCode).toBe(404);
+  expect(JSON.parse(response.body)).toEqual({ error: "Lyrics are not available for this track yet." });
 });

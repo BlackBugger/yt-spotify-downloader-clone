@@ -480,6 +480,165 @@ test("updates the current track from the bottom player heart control", async () 
   ));
 });
 
+test("loads synchronized lyrics for the active recording and seeks from a lyric line", async () => {
+  const lyricTrack = {
+    ...tracks[0],
+    album: { name: "After Dark", images: [] },
+    duration_ms: 180000,
+  };
+  mockSpotifyPlayer.deviceId = "browser-device";
+  mockSpotifyPlayer.duration = 180000;
+  mockSpotifyPlayer.position = 6500;
+  mockSpotifyPlayer.playerState = {
+    paused: false,
+    track_window: { current_track: lyricTrack },
+  };
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          authenticated: true,
+          accessToken: "short-lived",
+          expiresIn: 3600,
+          profile: { display_name: "Cruz", images: [] },
+        }),
+      });
+    }
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
+      return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    }
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) {
+      return Promise.resolve({ ok: true, json: async () => [false] });
+    }
+    if (url === "/.netlify/functions/lyrics?track=Track+1&artist=Artist&album=After+Dark&duration=180") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          instrumental: false,
+          plainLyrics: "First glow\nSecond glow",
+          syncedLyrics: "[00:01.00]First glow\n[00:06.00]Second glow",
+          source: "LRCLIB",
+        }),
+      });
+    }
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+
+  const lyricsRegion = await screen.findByRole("region", { name: /lyrics for track 1/i });
+  const currentLine = await screen.findByRole("button", { name: /seek to 0:06.*second glow/i });
+  expect(currentLine).toHaveAttribute("aria-current", "true");
+  fireEvent.click(screen.getByRole("button", { name: /seek to 0:01.*first glow/i }));
+  expect(mockSpotifyPlayer.seek).toHaveBeenCalledWith(1000);
+
+  fireEvent.click(screen.getByRole("button", { name: /open lyrics for track 1/i }));
+  expect(lyricsRegion).toHaveFocus();
+});
+
+test("ignores lyrics that resolve after the active track changes", async () => {
+  const firstLyrics = deferred();
+  const secondLyrics = deferred();
+  const firstTrack = {
+    ...tracks[0],
+    name: "First Recording",
+    album: { name: "First Album", images: [] },
+    duration_ms: 180000,
+  };
+  const secondTrack = {
+    ...tracks[1],
+    name: "Second Recording",
+    album: { name: "Second Album", images: [] },
+    duration_ms: 181000,
+  };
+  mockSpotifyPlayer.deviceId = "browser-device";
+  mockSpotifyPlayer.duration = 180000;
+  mockSpotifyPlayer.playerState = {
+    paused: true,
+    track_window: { current_track: firstTrack },
+  };
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          authenticated: true,
+          accessToken: "short-lived",
+          expiresIn: 3600,
+          profile: { display_name: "Cruz", images: [] },
+        }),
+      });
+    }
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
+      return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    }
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) {
+      return Promise.resolve({ ok: true, json: async () => [false] });
+    }
+    if (url.includes("/.netlify/functions/lyrics?track=First+Recording")) return firstLyrics.promise;
+    if (url.includes("/.netlify/functions/lyrics?track=Second+Recording")) return secondLyrics.promise;
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  let view;
+  await act(async () => {
+    view = render(<Home />);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  const { rerender } = view;
+  await waitFor(() => expect(fetch.mock.calls.some(([url]) => (
+    String(url).includes("/.netlify/functions/lyrics?track=First+Recording")
+  ))).toBe(true));
+  await screen.findByText("No playlists to show yet.");
+
+  mockSpotifyPlayer.duration = 181000;
+  mockSpotifyPlayer.playerState = {
+    paused: true,
+    track_window: { current_track: secondTrack },
+  };
+  await act(async () => {
+    rerender(<Home />);
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(fetch.mock.calls.some(([url]) => (
+    String(url).includes("/.netlify/functions/lyrics?track=Second+Recording")
+  ))).toBe(true));
+
+  await act(async () => {
+    secondLyrics.resolve({
+      ok: true,
+      json: async () => ({
+        instrumental: false,
+        plainLyrics: "Newest lyric",
+        syncedLyrics: "[00:02.00]Newest lyric",
+        source: "LRCLIB",
+      }),
+    });
+    await secondLyrics.promise;
+    await Promise.resolve();
+  });
+  expect(await screen.findByText("Newest lyric")).toBeInTheDocument();
+
+  await act(async () => {
+    firstLyrics.resolve({
+      ok: true,
+      json: async () => ({
+        instrumental: false,
+        plainLyrics: "Stale lyric",
+        syncedLyrics: "[00:01.00]Stale lyric",
+        source: "LRCLIB",
+      }),
+    });
+    await firstLyrics.promise;
+    await Promise.resolve();
+  });
+  expect(screen.queryByText("Stale lyric")).not.toBeInTheDocument();
+  expect(screen.getByText("Newest lyric")).toBeInTheDocument();
+});
+
 test("lists Spotify devices and transfers playback from the bottom player", async () => {
   const playlistResponse = deferred();
   const deviceResponse = deferred();

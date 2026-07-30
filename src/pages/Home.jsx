@@ -2,14 +2,25 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FiArrowRight, FiCheck, FiDownload, FiHeadphones, FiSearch, FiYoutube } from "react-icons/fi";
 import SongCard from "../components/SongCard";
 import SpotifyLibrary from "../components/SpotifyLibrary";
+import SpotifyLyrics from "../components/SpotifyLyrics";
 import SpotifyNowPlaying from "../components/SpotifyNowPlaying";
 import { spotifyUserRequest } from "../api/spotifyUserRequest";
 import { useSpotifyPlayer } from "../hooks/useSpotifyPlayer";
+import { parseSyncedLyrics, splitPlainLyrics } from "../utils/lyrics";
 import "./Home.css";
 
 const popularSearches = ["SZA", "Bad Bunny", "Drake", "Tame Impala"];
 const REFRESH_EARLY_MS = 30_000;
 const libraryEndpoints = { playlists: "me/playlists?limit=20", albums: "me/albums?limit=20", tracks: "me/tracks?limit=20" };
+const emptyLyrics = {
+  trackId: "",
+  lines: [],
+  plainLines: [],
+  loading: false,
+  error: "",
+  instrumental: false,
+  source: "",
+};
 
 async function api(path, options) {
   const response = await fetch(`/.netlify/functions/${path}`, options);
@@ -74,6 +85,8 @@ export default function Home() {
     position: 0,
     duration: 0,
   });
+  const [lyrics, setLyrics] = useState(emptyLyrics);
+  const [lyricsRetryKey, setLyricsRetryKey] = useState(0);
   const authenticatedRef = useRef(false);
   const sessionRequestRef = useRef(0);
   const searchRequestRef = useRef(0);
@@ -82,6 +95,7 @@ export default function Home() {
   const savedStatusRequestRef = useRef(0);
   const deviceRequestRef = useRef(0);
   const deviceTransferRef = useRef(0);
+  const lyricsRequestRef = useRef(0);
   const savedMutationVersionRef = useRef({});
   const savePendingRef = useRef({});
   const savedRef = useRef({});
@@ -96,6 +110,7 @@ export default function Home() {
     savedStatusRequestRef.current += 1;
     deviceRequestRef.current += 1;
     deviceTransferRef.current += 1;
+    lyricsRequestRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -124,10 +139,12 @@ export default function Home() {
       savedStatusRequestRef.current += 1;
       deviceRequestRef.current += 1;
       deviceTransferRef.current += 1;
+      lyricsRequestRef.current += 1;
       setLibrary({ tab: "playlists", items: [], loading: false, error: "" });
       setPlaybackDevices({ items: [], loading: false, transferring: "", error: "" });
       setPlaybackTargetId("");
       setRemotePlayback({ track: null, isPlaying: false, position: 0, duration: 0 });
+      setLyrics(emptyLyrics);
       return;
     }
     authenticatedRef.current = true;
@@ -187,7 +204,72 @@ export default function Home() {
   const playbackPosition = isRemotePlayback ? remotePlayback.position : player.position;
   const playbackDuration = isRemotePlayback ? remotePlayback.duration : player.duration;
   const nowPlayingId = nowPlaying?.id || "";
+  const lyricsTrackName = nowPlaying?.name?.trim() || "";
+  const lyricsArtist = (nowPlaying?.artists || []).map((artist) => artist.name).filter(Boolean).join(", ");
+  const lyricsAlbum = nowPlaying?.album?.name?.trim() || "";
+  const lyricsDurationSeconds = Math.round(Number(playbackDuration || nowPlaying?.duration_ms || 0) / 1000);
+  const lyricsAvailable = Boolean(
+    account
+    && nowPlayingId
+    && lyricsTrackName
+    && lyricsArtist
+    && lyricsAlbum
+    && lyricsDurationSeconds,
+  );
   useEffect(() => { savedRef.current = saved; }, [saved]);
+
+  useEffect(() => {
+    if (!lyricsAvailable) {
+      lyricsRequestRef.current += 1;
+      setLyrics(emptyLyrics);
+      return undefined;
+    }
+    const requestId = ++lyricsRequestRef.current;
+    setLyrics({
+      ...emptyLyrics,
+      trackId: nowPlayingId,
+      loading: true,
+    });
+    const parameters = new URLSearchParams({
+      track: lyricsTrackName,
+      artist: lyricsArtist,
+      album: lyricsAlbum,
+      duration: String(lyricsDurationSeconds),
+    });
+    api(`lyrics?${parameters.toString()}`)
+      .then((data) => {
+        if (requestId !== lyricsRequestRef.current || !authenticatedRef.current) return;
+        setLyrics({
+          trackId: nowPlayingId,
+          lines: parseSyncedLyrics(data.syncedLyrics),
+          plainLines: splitPlainLyrics(data.plainLyrics),
+          loading: false,
+          error: "",
+          instrumental: Boolean(data.instrumental),
+          source: data.source || "",
+        });
+      })
+      .catch((lyricsError) => {
+        if (requestId !== lyricsRequestRef.current || !authenticatedRef.current) return;
+        setLyrics({
+          ...emptyLyrics,
+          trackId: nowPlayingId,
+          error: lyricsError.message || "Lyrics are temporarily unavailable.",
+        });
+      });
+    return () => {
+      if (requestId === lyricsRequestRef.current) lyricsRequestRef.current += 1;
+    };
+  }, [
+    lyricsAlbum,
+    lyricsArtist,
+    lyricsAvailable,
+    lyricsDurationSeconds,
+    lyricsRetryKey,
+    lyricsTrackName,
+    nowPlayingId,
+  ]);
+
   useEffect(() => {
     if (!player.error) {
       playerAuthRecoveryRef.current = false;
@@ -519,6 +601,13 @@ export default function Home() {
     }
   }
 
+  function openLyrics() {
+    const panel = document.getElementById("spotify-lyrics");
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    panel?.focus();
+    panel?.scrollIntoView?.({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }
+
   const resultStatus = loading ? "Searching the catalog" : searchFailed ? "Catalog search failed" : searched ? `${tracks.length} tracks found` : "Ready to search";
   return <div className={`home-page ${account ? "has-spotify-player" : ""}`}>
     <Header account={account} catalogStatus={catalogStatus} onLibrary={loadLibrary} onLogout={logout} />
@@ -552,6 +641,15 @@ export default function Home() {
           </div>
         )}
       </section>
+      {lyricsAvailable && <SpotifyLyrics
+        track={nowPlaying}
+        isPlaying={playbackIsPlaying}
+        position={playbackPosition}
+        duration={playbackDuration}
+        lyrics={lyrics}
+        onSeek={seekPlayback}
+        onRetry={() => setLyricsRetryKey((current) => current + 1)}
+      />}
       {account && <SpotifyLibrary account={account} library={library} saved={saved} onLoad={loadLibrary} onPlay={playSpotifyItem} onToggleSaved={toggleSaved} />}
     </main>
     {account && <SpotifyNowPlaying
@@ -568,6 +666,7 @@ export default function Home() {
       saved={Boolean(nowPlayingId && saved[nowPlayingId])}
       savePending={Boolean(nowPlayingId && savePending[nowPlayingId])}
       onToggleSaved={toggleSaved}
+      onOpenLyrics={lyricsAvailable ? openLyrics : undefined}
       devices={playbackDevices.items}
       devicesLoading={playbackDevices.loading}
       deviceTransferring={playbackDevices.transferring}
