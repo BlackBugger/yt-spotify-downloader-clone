@@ -39,7 +39,7 @@ test("OAuth callback returns separate cookies through Lambda multiValueHeaders",
     queryStringParameters: { code: "valid-code", state },
   });
   expect(response.statusCode).toBe(302);
-  expect(response.headers.Location).toBe("/");
+  expect(response.headers.Location).toBe("https://preview.example.net/");
   expect(response.multiValueHeaders["Set-Cookie"]).toHaveLength(2);
   expect(response.headers["Set-Cookie"]).toBeUndefined();
 });

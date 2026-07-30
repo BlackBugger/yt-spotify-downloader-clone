@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FiArrowRight, FiCheck, FiDownload, FiHeadphones, FiSearch, FiYoutube } from "react-icons/fi";
 import SongCard from "../components/SongCard";
+import SpotifyLibrary from "../components/SpotifyLibrary";
+import SpotifyNowPlaying from "../components/SpotifyNowPlaying";
+import { spotifyUserRequest } from "../api/spotifyUserRequest";
 import { useSpotifyPlayer } from "../hooks/useSpotifyPlayer";
 import "./Home.css";
 
@@ -17,52 +20,6 @@ async function api(path, options) {
     throw apiError;
   }
   return data;
-}
-
-function trackArtists(track) {
-  return (track.artists || []).map((artist) => artist.name).join(", ");
-}
-
-function artworkFor(item) {
-  const entry = item.track || item.album || item;
-  return entry.images?.[0]?.url || entry.album?.images?.[0]?.url || "";
-}
-
-function LibraryCard({ item }) {
-  const entry = item.track || item.album || item;
-  const metadata = trackArtists(entry) || entry.owner?.display_name || "Spotify";
-  const artwork = artworkFor(item);
-  const [artworkFailed, setArtworkFailed] = useState(false);
-  return <article className="library-card">
-    {artwork && !artworkFailed ? <img src={artwork} alt="" loading="lazy" onError={() => setArtworkFailed(true)} /> : <div className="library-art-placeholder" aria-hidden="true" />}
-    <div><strong>{entry.name}</strong><span>{metadata}</span></div>
-  </article>;
-}
-
-function LibraryPanel({ account, library, onLoad }) {
-  const tabs = [["playlists", "Playlists"], ["albums", "Albums"], ["tracks", "Saved Tracks"]];
-  const activeLabel = tabs.find(([tab]) => tab === library.tab)?.[1] || "Library";
-  const statusMessage = library.loading
-    ? `Loading ${activeLabel.toLowerCase()}`
-    : library.error
-      ? `${activeLabel} could not be loaded`
-      : `${library.items.length} ${activeLabel.toLowerCase()} loaded`;
-  return <section className="library-panel" id="spotify-library" tabIndex="-1" aria-label="Spotify library">
-    <div className="library-heading">
-      {account.images?.[0]?.url && <img className="profile-avatar" src={account.images[0].url} alt="" />}
-      <div><span className="section-label">Your Spotify</span><h2>Library</h2><p>Library and saves work on any Spotify account. In-browser playback requires Premium.</p></div>
-    </div>
-    <div className="library-tabs" aria-label="Spotify library sections">
-      {tabs.map(([tab, label]) => <button key={tab} aria-pressed={library.tab === tab} onClick={() => onLoad(tab)}>{label}</button>)}
-    </div>
-    <div aria-busy={library.loading}>
-      <p className="sr-only" role="status">{statusMessage}</p>
-      {library.loading && <p>Loading {activeLabel.toLowerCase()}…</p>}
-      {library.error && <p role="alert">{library.error}</p>}
-      {!library.loading && !library.error && library.items.length === 0 && <p className="library-empty">No {library.tab} to show yet.</p>}
-      {!library.loading && !library.error && library.items.length > 0 && <div className="library-grid">{library.items.map((item) => <LibraryCard key={item.id || item.track?.id || item.album?.id} item={item} />)}</div>}
-    </div>
-  </section>;
 }
 
 function Header({ account, catalogStatus, onLibrary, onLogout }) {
@@ -102,6 +59,7 @@ export default function Home() {
   const [saved, setSaved] = useState({});
   const [library, setLibrary] = useState({ tab: "playlists", items: [], loading: false, error: "" });
   const [notice, setNotice] = useState("");
+  const [playerNotice, setPlayerNotice] = useState("");
   const authenticatedRef = useRef(false);
   const sessionRequestRef = useRef(0);
   const searchRequestRef = useRef(0);
@@ -111,6 +69,9 @@ export default function Home() {
   const savedMutationVersionRef = useRef({});
   const savePendingRef = useRef({});
   const savedRef = useRef({});
+  const playerAuthRecoveryRef = useRef(false);
+  const tokenRef = useRef("");
+  const sessionRefreshPromiseRef = useRef(null);
 
   useEffect(() => () => {
     sessionRequestRef.current += 1;
@@ -119,9 +80,19 @@ export default function Home() {
     savedStatusRequestRef.current += 1;
   }, []);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const oauthParameters = ["code", "state", "ubi"];
+    const shouldClean = oauthParameters.some((parameter) => url.searchParams.has(parameter));
+    if (!shouldClean) return;
+    oauthParameters.forEach((parameter) => url.searchParams.delete(parameter));
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
   const setSession = useCallback((session) => {
     if (!session.authenticated) {
       authenticatedRef.current = false;
+      tokenRef.current = "";
       setAccount(null);
       setToken("");
       setExpiresIn(0);
@@ -134,28 +105,44 @@ export default function Home() {
       return;
     }
     authenticatedRef.current = true;
+    tokenRef.current = session.accessToken;
     setAccount(session.profile);
     setToken(session.accessToken);
     setExpiresIn(Number(session.expiresIn || 0));
   }, []);
 
-  const refreshSession = useCallback(async () => {
+  const refreshSession = useCallback(() => {
+    if (sessionRefreshPromiseRef.current) return sessionRefreshPromiseRef.current;
     const requestId = ++sessionRequestRef.current;
-    try {
-      const session = await api("spotify-session");
-      if (requestId !== sessionRequestRef.current) return;
-      setSession(session);
-      setNotice("");
-    } catch (sessionError) {
-      if (requestId !== sessionRequestRef.current) return;
-      if (sessionError.status === 401) {
-        setSession({ authenticated: false });
-        setNotice("Your Spotify session expired. Public search is still available.");
-      } else if (authenticatedRef.current) {
-        setNotice("Your Spotify session could not be refreshed. We will try again later.");
+    const pending = (async () => {
+      try {
+        const session = await api("spotify-session");
+        if (requestId !== sessionRequestRef.current) return null;
+        setSession(session);
+        setNotice("");
+        return session;
+      } catch (sessionError) {
+        if (requestId !== sessionRequestRef.current) return null;
+        if (sessionError.status === 401) {
+          setSession({ authenticated: false });
+          setNotice("Your Spotify session expired. Public search is still available.");
+        } else if (authenticatedRef.current) {
+          setNotice("Your Spotify session could not be refreshed. We will try again later.");
+        }
+        return null;
       }
-    }
+    })();
+    sessionRefreshPromiseRef.current = pending;
+    pending.finally(() => {
+      if (sessionRefreshPromiseRef.current === pending) sessionRefreshPromiseRef.current = null;
+    });
+    return pending;
   }, [setSession]);
+
+  const spotifyRequest = useCallback((url, options) => spotifyUserRequest(url, options, {
+    getAccessToken: () => tokenRef.current,
+    refreshAccessToken: refreshSession,
+  }), [refreshSession]);
 
   useEffect(() => { refreshSession(); }, [refreshSession]);
   useEffect(() => {
@@ -168,14 +155,29 @@ export default function Home() {
   const playerReady = useCallback(() => undefined, []);
   const player = useSpotifyPlayer(token, playerReady);
   useEffect(() => { savedRef.current = saved; }, [saved]);
-  useEffect(() => { if (player.error) setNotice(player.error); }, [player.error]);
+  useEffect(() => {
+    if (!player.error) {
+      playerAuthRecoveryRef.current = false;
+      setPlayerNotice("");
+      return;
+    }
+    if (player.errorType === "authentication") {
+      setPlayerNotice("Refreshing your Spotify playback session.");
+      if (!playerAuthRecoveryRef.current) {
+        playerAuthRecoveryRef.current = true;
+        refreshSession();
+      }
+      return;
+    }
+    setPlayerNotice(player.error);
+  }, [player.error, player.errorType, refreshSession]);
 
   useEffect(() => {
     if (!token || tracks.length === 0) return undefined;
     const ids = tracks.map((track) => track.id).filter(Boolean);
     const requestId = ++savedStatusRequestRef.current;
     const versions = Object.fromEntries(ids.map((id) => [id, savedMutationVersionRef.current[id] || 0]));
-    fetch(`https://api.spotify.com/v1/me/tracks/contains?ids=${encodeURIComponent(ids.join(","))}`, { headers: { Authorization: `Bearer ${token}` } })
+    spotifyRequest(`https://api.spotify.com/v1/me/tracks/contains?ids=${encodeURIComponent(ids.join(","))}`)
       .then((response) => {
         if (!response.ok) throw new Error("Saved-track status could not be loaded.");
         return response.json();
@@ -195,7 +197,7 @@ export default function Home() {
         if (requestId === savedStatusRequestRef.current) setNotice("Saved-track status could not be loaded.");
       });
     return () => { if (requestId === savedStatusRequestRef.current) savedStatusRequestRef.current += 1; };
-  }, [token, tracks]);
+  }, [spotifyRequest, token, tracks]);
 
   const loadLibrary = useCallback(async (tab) => {
     if (!token) return;
@@ -203,14 +205,25 @@ export default function Home() {
     const requestId = ++libraryRequestRef.current;
     setLibrary({ tab, items: [], loading: true, error: "" });
     try {
-      const response = await fetch(`https://api.spotify.com/v1/${libraryEndpoints[tab]}`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await spotifyRequest(`https://api.spotify.com/v1/${libraryEndpoints[tab]}`);
       if (!response.ok) throw new Error("Your library could not be loaded.");
       const data = await response.json();
-      if (requestId === libraryRequestRef.current) setLibrary({ tab, items: data.items || [], loading: false, error: "" });
+      if (requestId === libraryRequestRef.current) {
+        const items = data.items || [];
+        if (tab === "tracks") {
+          setSaved((current) => {
+            const next = { ...current };
+            items.forEach(({ track }) => { if (track?.id) next[track.id] = true; });
+            savedRef.current = next;
+            return next;
+          });
+        }
+        setLibrary({ tab, items, loading: false, error: "" });
+      }
     } catch (libraryError) {
       if (requestId === libraryRequestRef.current) setLibrary({ tab, items: [], loading: false, error: libraryError.message });
     }
-  }, [token]);
+  }, [spotifyRequest, token]);
 
   useEffect(() => {
     if (token) loadLibrary(selectedLibraryTabRef.current);
@@ -250,33 +263,51 @@ export default function Home() {
     savePendingRef.current[id] = true;
     const previous = Boolean(savedRef.current[id]);
     const mutationVersion = (savedMutationVersionRef.current[id] || 0) + 1;
-    const sessionVersion = sessionRequestRef.current;
     savedMutationVersionRef.current[id] = mutationVersion;
     const optimistic = { ...savedRef.current, [id]: !previous };
     savedRef.current = optimistic;
     setSaved(optimistic);
     try {
-      const response = await fetch(`https://api.spotify.com/v1/me/tracks?ids=${encodeURIComponent(track.id)}`, { method: previous ? "DELETE" : "PUT", headers: { Authorization: `Bearer ${token}` } });
+      const response = await spotifyRequest(`https://api.spotify.com/v1/me/tracks?ids=${encodeURIComponent(track.id)}`, { method: previous ? "DELETE" : "PUT" });
       if (!response.ok) throw new Error();
+      if (previous && selectedLibraryTabRef.current === "tracks") {
+        setLibrary((current) => ({
+          ...current,
+          items: current.items.filter((item) => item.track?.id !== id),
+        }));
+      }
+      return true;
     } catch {
-      if (savedMutationVersionRef.current[id] === mutationVersion && sessionRequestRef.current === sessionVersion) {
+      if (savedMutationVersionRef.current[id] === mutationVersion && authenticatedRef.current) {
         const rolledBack = { ...savedRef.current, [id]: previous };
         savedRef.current = rolledBack;
         setSaved(rolledBack);
         setNotice(`Could not ${previous ? "remove" : "save"} ${track.name}.`);
       }
+      return false;
     } finally {
       delete savePendingRef.current[id];
     }
   }
 
-  async function playTrack(track) {
+  async function playSpotifyItem(item) {
     await player.activateElement?.();
     if (!player.deviceId) { setNotice("Cruz Audio is connecting a Spotify device. Spotify Premium is required for in-browser playback."); return; }
     try {
-      const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(player.deviceId)}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ uris: [track.uri] }) });
+      const playback = item.type === "track" ? { uris: [item.uri] } : { context_uri: item.uri };
+      const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(player.deviceId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(playback),
+      });
       if (!response.ok) throw new Error();
+      setNotice("");
     } catch { setNotice("Spotify could not transfer playback. Your library and saves still work; Premium is required for browser playback."); }
+  }
+
+  async function togglePlayerPlayback() {
+    await player.activateElement?.();
+    await player.togglePlay?.();
   }
 
   async function logout() {
@@ -293,14 +324,14 @@ export default function Home() {
 
   const resultStatus = loading ? "Searching the catalog" : searchFailed ? "Catalog search failed" : searched ? `${tracks.length} tracks found` : "Ready to search";
   const nowPlaying = player.playerState?.track_window?.current_track;
-  return <div className="home-page">
+  return <div className={`home-page ${account ? "has-spotify-player" : ""}`}>
     <Header account={account} catalogStatus={catalogStatus} onLibrary={loadLibrary} onLogout={logout} />
     {notice && <p className="account-notice" role="alert">{notice}</p>}
     <main>
       <section className="hero"><div className="hero-content"><div className="eyebrow"><span>Search</span><FiArrowRight /><span>Match</span><FiArrowRight /><span>Listen</span></div><h1>Your next listen,<span> one search away.</span></h1><p className="hero-copy">Find a track in Spotify&apos;s catalog, jump to its closest YouTube match, or save the audio for later.</p>
         <div className="search-shell"><form onSubmit={submit} className="cruz-search"><label htmlFor="track-search">What do you want to hear?</label><div className="search-control"><FiSearch className="search-icon" /><input id="track-search" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setError(""); }} aria-describedby={error ? "search-error" : "search-hint"} placeholder="Song, artist, or album" /><button type="submit" disabled={loading}><span>{loading ? "Searching" : "Find tracks"}</span><FiArrowRight /></button></div>{error ? <p className="search-message error" id="search-error" role="alert">{error}</p> : <p className="search-message" id="search-hint">Try a song title and artist for the closest match.</p>}</form><div className="popular-searches"><span>Popular now</span><div>{popularSearches.map((item) => <button type="button" key={item} onClick={() => { setQuery(item); submit(null, item); }}>{item}</button>)}</div></div></div>
         <div className="hero-proof"><span><FiCheck /> Spotify catalog search</span><span><FiCheck /> YouTube source match</span><span><FiCheck /> No account required</span></div></div></section>
-      {account && <LibraryPanel account={account} library={library} onLoad={loadLibrary} />}
+      {account && <SpotifyLibrary account={account} library={library} saved={saved} onLoad={loadLibrary} onPlay={playSpotifyItem} onToggleSaved={toggleSaved} />}
       <section className={`content-section ${searched ? "has-results" : ""}`} aria-label="Search results" aria-busy={loading}>
         <p className="sr-only" role="status" aria-label="Search status">{resultStatus}</p>
         {loading ? (
@@ -308,7 +339,7 @@ export default function Home() {
         ) : searched && !searchFailed ? (
           <div className="results-panel">
             <div className="results-heading"><div><span className="section-label">Search results</span><h2>{tracks.length ? `Matches for “${lastQuery}”` : `No matches for “${lastQuery}”`}</h2></div>{tracks.length > 0 && <span className="result-count">{tracks.length} {tracks.length === 1 ? "track" : "tracks"}</span>}</div>
-            {tracks.length ? <div className="search-list">{tracks.map((track) => <SongCard key={track.id} track={track} connected={Boolean(account)} saved={saved[track.id]} onPlay={playTrack} onToggleSaved={toggleSaved} />)}</div> : <div className="no-results"><FiHeadphones /><h3>Try a different search</h3><p>Check the spelling or add the artist&apos;s name.</p></div>}
+            {tracks.length ? <div className="search-list">{tracks.map((track) => <SongCard key={track.id} track={track} connected={Boolean(account)} saved={saved[track.id]} onPlay={playSpotifyItem} onToggleSaved={toggleSaved} />)}</div> : <div className="no-results"><FiHeadphones /><h3>Try a different search</h3><p>Check the spelling or add the artist&apos;s name.</p></div>}
           </div>
         ) : searchFailed ? (
           <div className="results-panel search-failure"><h2>Search unavailable</h2><p>The catalog could not complete that search. Try again in a moment.</p></div>
@@ -324,7 +355,18 @@ export default function Home() {
         )}
       </section>
     </main>
-    {nowPlaying && <aside className="now-playing" aria-label="Spotify player"><div className="now-playing-status" role="status" aria-live="polite" aria-atomic="true"><strong>Now playing: {nowPlaying.name}</strong><span>{trackArtists(nowPlaying)}</span></div><button onClick={player.togglePlay}>{player.isPlaying ? "Pause" : "Play"}</button><small>Spotify Premium required for in-browser playback.</small></aside>}
+    {account && <SpotifyNowPlaying
+      track={nowPlaying}
+      isPlaying={player.isPlaying}
+      isReady={Boolean(player.deviceId)}
+      error={playerNotice}
+      position={player.position}
+      duration={player.duration}
+      onTogglePlay={togglePlayerPlayback}
+      onPrevious={player.previousTrack}
+      onNext={player.nextTrack}
+      onSeek={player.seek}
+    />}
     <footer><div><span className="footer-brand">CRUZ / AUDIO</span><p>Built for faster music discovery.</p></div><p className="legal-copy">Please respect creators and only download content you&apos;re authorized to use.</p></footer>
   </div>;
 }

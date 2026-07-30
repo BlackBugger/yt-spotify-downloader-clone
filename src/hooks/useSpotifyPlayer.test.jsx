@@ -13,8 +13,12 @@ function Harness({ token, onReady }) {
     <span data-testid="playing">{String(state.isPlaying)}</span>
     <span data-testid="track">{state.playerState?.track_window?.current_track?.name || ""}</span>
     <span data-testid="error">{state.error}</span>
+    <span data-testid="error-type">{state.errorType}</span>
     <button onClick={state.togglePlay}>toggle</button>
     <button onClick={state.activateElement}>activate</button>
+    <button onClick={state.previousTrack}>previous</button>
+    <button onClick={state.nextTrack}>next</button>
+    <button onClick={() => state.seek(42000)}>seek</button>
   </>;
 }
 
@@ -26,6 +30,9 @@ beforeEach(() => {
     disconnect: jest.fn(),
     togglePlay: jest.fn(() => Promise.resolve()),
     activateElement: jest.fn(() => Promise.resolve()),
+    previousTrack: jest.fn(() => Promise.resolve()),
+    nextTrack: jest.fn(() => Promise.resolve()),
+    seek: jest.fn(() => Promise.resolve()),
   };
   window.Spotify = { Player: jest.fn(() => player) };
   window.onSpotifyWebPlaybackSDKReady = undefined;
@@ -91,6 +98,51 @@ test("reports a failed play-pause toggle", async () => {
   fireEvent.click(screen.getByRole("button", { name: "toggle" }));
 
   expect(await screen.findByText(/playback could not be changed/i)).toBeInTheDocument();
+});
+
+test("controls the existing player for previous, next, and seek", async () => {
+  render(<Harness token="in-memory-token" onReady={jest.fn()} />);
+  await act(async () => { await Promise.resolve(); });
+
+  fireEvent.click(screen.getByRole("button", { name: "previous" }));
+  fireEvent.click(screen.getByRole("button", { name: "next" }));
+  fireEvent.click(screen.getByRole("button", { name: "seek" }));
+
+  await act(async () => { await Promise.resolve(); });
+  expect(player.previousTrack).toHaveBeenCalledTimes(1);
+  expect(player.nextTrack).toHaveBeenCalledTimes(1);
+  expect(player.seek).toHaveBeenCalledWith(42000);
+  expect(window.Spotify.Player).toHaveBeenCalledTimes(1);
+});
+
+test("normalizes SDK errors and clears a stale playback error after healthy state", async () => {
+  render(<Harness token="in-memory-token" onReady={jest.fn()} />);
+  await act(async () => { await Promise.resolve(); });
+
+  await act(async () => {
+    handlers.authentication_error({ message: "Invalid token" });
+  });
+  expect(screen.getByTestId("error")).toHaveTextContent("session needs to be refreshed");
+  expect(screen.getByTestId("error")).not.toHaveTextContent("Invalid token");
+  expect(screen.getByTestId("error-type")).toHaveTextContent("authentication");
+
+  await act(async () => {
+    handlers.playback_error({ message: "Raw playback failure" });
+  });
+  expect(screen.getByTestId("error")).toHaveTextContent("could not start that track");
+  expect(screen.getByTestId("error")).not.toHaveTextContent("Raw playback failure");
+  expect(screen.getByTestId("error-type")).toHaveTextContent("playback");
+
+  await act(async () => {
+    handlers.player_state_changed({
+      paused: false,
+      position: 1000,
+      duration: 180000,
+      track_window: { current_track: { name: "Playing now" } },
+    });
+  });
+  expect(screen.getByTestId("error")).toBeEmptyDOMElement();
+  expect(screen.getByTestId("error-type")).toBeEmptyDOMElement();
 });
 
 test("loads the SDK script once when the global SDK is not available", () => {

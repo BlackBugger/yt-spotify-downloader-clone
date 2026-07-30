@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const SDK_URL = "https://sdk.scdn.co/spotify-player.js";
 let sdkPromise;
@@ -36,6 +36,17 @@ export function useSpotifyPlayer(accessToken, onReady) {
   const [deviceId, setDeviceId] = useState("");
   const [playerState, setPlayerState] = useState(null);
   const [error, setError] = useState("");
+  const [errorType, setErrorType] = useState("");
+
+  const clearError = useCallback(() => {
+    setError("");
+    setErrorType("");
+  }, []);
+
+  const reportError = useCallback((type, message) => {
+    setErrorType(type);
+    setError(message);
+  }, []);
 
   useEffect(() => { tokenRef.current = accessToken; }, [accessToken]);
 
@@ -43,8 +54,8 @@ export function useSpotifyPlayer(accessToken, onReady) {
     if (hasAccessToken) return;
     setDeviceId("");
     setPlayerState(null);
-    setError("");
-  }, [hasAccessToken]);
+    clearError();
+  }, [clearError, hasAccessToken]);
 
   useEffect(() => {
     if (!hasAccessToken) return undefined;
@@ -59,43 +70,91 @@ export function useSpotifyPlayer(accessToken, onReady) {
       player.addListener("ready", ({ device_id: readyDeviceId }) => {
         if (!active) return;
         setDeviceId(readyDeviceId);
-        setError("");
+        clearError();
         onReady?.(readyDeviceId);
       });
       player.addListener("not_ready", () => {
         if (!active) return;
         setDeviceId("");
         setPlayerState(null);
-        setError("Spotify playback device disconnected.");
+        reportError("device", "Spotify playback device disconnected.");
       });
-      player.addListener("autoplay_failed", () => { if (active) setError("Spotify autoplay was blocked. Press Play again to continue."); });
-      player.addListener("player_state_changed", (state) => { if (active) setPlayerState(state); });
-      ["initialization_error", "authentication_error", "account_error", "playback_error"].forEach((event) => {
-        player.addListener(event, ({ message }) => { if (active) setError(message || "Spotify playback is unavailable."); });
+      player.addListener("autoplay_failed", () => {
+        if (active) reportError("autoplay", "Spotify autoplay was blocked. Press Play again to continue.");
+      });
+      player.addListener("player_state_changed", (state) => {
+        if (!active) return;
+        setPlayerState(state);
+        if (state) clearError();
+      });
+      player.addListener("initialization_error", () => {
+        if (active) reportError("initialization", "Spotify playback could not start in this browser.");
+      });
+      player.addListener("authentication_error", () => {
+        if (active) reportError("authentication", "Spotify session needs to be refreshed.");
+      });
+      player.addListener("account_error", () => {
+        if (active) reportError("account", "Spotify Premium is required for in-browser playback.");
+      });
+      player.addListener("playback_error", () => {
+        if (active) reportError("playback", "Spotify could not start that track. Try Play again.");
       });
       Promise.resolve(player.connect())
-        .then((connected) => { if (active && !connected) setError("Spotify playback could not connect."); })
-        .catch(() => { if (active) setError("Spotify playback could not connect."); });
-    }).catch((loadError) => { if (active) setError(loadError.message); });
+        .then((connected) => {
+          if (active && !connected) reportError("connection", "Spotify playback could not connect.");
+        })
+        .catch(() => {
+          if (active) reportError("connection", "Spotify playback could not connect.");
+        });
+    }).catch(() => {
+      if (active) reportError("sdk", "Spotify playback SDK could not be loaded.");
+    });
     return () => {
       active = false;
       playerRef.current?.disconnect();
       playerRef.current = null;
     };
-  }, [hasAccessToken, onReady]);
+  }, [clearError, hasAccessToken, onReady, reportError]);
 
   return {
     deviceId,
     error,
+    errorType,
     playerState,
     isPlaying: Boolean(playerState && !playerState.paused),
+    position: Number(playerState?.position || 0),
+    duration: Number(playerState?.duration || playerState?.track_window?.current_track?.duration_ms || 0),
     activateElement: () => playerRef.current?.activateElement?.(),
     togglePlay: async () => {
       try {
         await playerRef.current?.togglePlay();
-        setError("");
+        clearError();
       } catch {
-        setError("Spotify playback could not be changed.");
+        reportError("command", "Spotify playback could not be changed.");
+      }
+    },
+    previousTrack: async () => {
+      try {
+        await playerRef.current?.previousTrack();
+        clearError();
+      } catch {
+        reportError("command", "Spotify could not go to the previous track.");
+      }
+    },
+    nextTrack: async () => {
+      try {
+        await playerRef.current?.nextTrack();
+        clearError();
+      } catch {
+        reportError("command", "Spotify could not go to the next track.");
+      }
+    },
+    seek: async (positionMs) => {
+      try {
+        await playerRef.current?.seek(Math.max(0, Math.round(Number(positionMs) || 0)));
+        clearError();
+      } catch {
+        reportError("command", "Spotify could not seek in this track.");
       }
     },
   };
