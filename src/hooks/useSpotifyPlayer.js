@@ -37,6 +37,7 @@ export function useSpotifyPlayer(accessToken, onReady) {
   const [playerState, setPlayerState] = useState(null);
   const [error, setError] = useState("");
   const [errorType, setErrorType] = useState("");
+  const [volume, setVolumeState] = useState(1);
 
   const clearError = useCallback(() => {
     setError("");
@@ -54,6 +55,7 @@ export function useSpotifyPlayer(accessToken, onReady) {
     if (hasAccessToken) return;
     setDeviceId("");
     setPlayerState(null);
+    setVolumeState(1);
     clearError();
   }, [clearError, hasAccessToken]);
 
@@ -72,6 +74,14 @@ export function useSpotifyPlayer(accessToken, onReady) {
         setDeviceId(readyDeviceId);
         clearError();
         onReady?.(readyDeviceId);
+        Promise.resolve(player.getVolume?.())
+          .then((currentVolume) => {
+            const numericVolume = Number(currentVolume);
+            if (active && Number.isFinite(numericVolume)) {
+              setVolumeState(Math.min(Math.max(numericVolume, 0), 1));
+            }
+          })
+          .catch(() => undefined);
       });
       player.addListener("not_ready", () => {
         if (!active) return;
@@ -121,6 +131,7 @@ export function useSpotifyPlayer(accessToken, onReady) {
     error,
     errorType,
     playerState,
+    volume,
     isPlaying: Boolean(playerState && !playerState.paused),
     position: Number(playerState?.position || 0),
     duration: Number(playerState?.duration || playerState?.track_window?.current_track?.duration_ms || 0),
@@ -155,6 +166,22 @@ export function useSpotifyPlayer(accessToken, onReady) {
         clearError();
       } catch {
         reportError("command", "Spotify could not seek in this track.");
+      }
+    },
+    setVolume: async (nextVolume) => {
+      const numericVolume = Number(nextVolume);
+      const normalizedVolume = Number.isFinite(numericVolume)
+        ? Math.min(Math.max(numericVolume, 0), 1)
+        : 1;
+      try {
+        if (!playerRef.current?.setVolume) throw new Error("volume");
+        await playerRef.current.setVolume(normalizedVolume);
+        setVolumeState(normalizedVolume);
+        clearError();
+        return true;
+      } catch {
+        reportError("command", "Spotify could not change the volume.");
+        return false;
       }
     },
   };

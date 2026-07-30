@@ -10,11 +10,13 @@ const mockSpotifyPlayer = {
   isPlaying: false,
   position: 0,
   duration: 0,
+  volume: 1,
   togglePlay: jest.fn(),
   activateElement: jest.fn(() => Promise.resolve()),
   previousTrack: jest.fn(),
   nextTrack: jest.fn(),
   seek: jest.fn(),
+  setVolume: jest.fn(() => Promise.resolve(true)),
 };
 
 jest.mock("../hooks/useSpotifyPlayer", () => ({
@@ -47,11 +49,13 @@ beforeEach(() => {
     isPlaying: false,
     position: 0,
     duration: 0,
+    volume: 1,
     togglePlay: jest.fn(),
     activateElement: jest.fn(() => Promise.resolve()),
     previousTrack: jest.fn(),
     nextTrack: jest.fn(),
     seek: jest.fn(),
+    setVolume: jest.fn(() => Promise.resolve(true)),
   });
   jest.spyOn(console, "error").mockImplementation((message, ...args) => {
     if (String(message).includes("not wrapped in act")) {
@@ -666,6 +670,9 @@ test("lists Spotify devices and transfers playback from the bottom player", asyn
     }
     if (url === "https://api.spotify.com/v1/me/player/devices") return deviceResponse.promise;
     if (url === "https://api.spotify.com/v1/me/player" && options.method === "PUT") return transferResponse.promise;
+    if (url === "https://api.spotify.com/v1/me/player/volume?volume_percent=45&device_id=living-room" && options.method === "PUT") {
+      return Promise.resolve({ ok: true, status: 204 });
+    }
     if (url === "https://api.spotify.com/v1/me/player/play?device_id=living-room" && options.method === "PUT") {
       return Promise.resolve({ ok: true, status: 204 });
     }
@@ -686,8 +693,8 @@ test("lists Spotify devices and transfers playback from the bottom player", asyn
       ok: true,
       json: async () => ({
         devices: [
-          { id: "browser-device", name: "Cruz Audio", type: "Computer", is_active: true, is_restricted: false },
-          { id: "living-room", name: "Living Room TV", type: "TV", is_active: false, is_restricted: false },
+          { id: "browser-device", name: "Cruz Audio", type: "Computer", is_active: true, is_restricted: false, volume_percent: 80, supports_volume: true },
+          { id: "living-room", name: "Living Room TV", type: "TV", is_active: false, is_restricted: false, volume_percent: 35, supports_volume: true },
         ],
       }),
     });
@@ -712,6 +719,18 @@ test("lists Spotify devices and transfers playback from the bottom player", asyn
     }),
   ));
   expect(mockSpotifyPlayer.activateElement).not.toHaveBeenCalled();
+
+  const volume = screen.getByRole("slider", { name: /playback volume/i });
+  expect(volume).toHaveValue("35");
+  fireEvent.change(volume, { target: { value: "45" } });
+  await act(async () => {
+    fireEvent.pointerUp(volume);
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    "https://api.spotify.com/v1/me/player/volume?volume_percent=45&device_id=living-room",
+    expect.objectContaining({ method: "PUT" }),
+  ));
 
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: /play track 1/i }));

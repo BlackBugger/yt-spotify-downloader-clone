@@ -21,6 +21,9 @@ function renderPlayer(overrides = {}) {
     onPrevious: jest.fn(),
     onNext: jest.fn(),
     onSeek: jest.fn(),
+    volume: 0.65,
+    volumeAvailable: true,
+    onVolumeChange: jest.fn(() => Promise.resolve(true)),
     saved: false,
     savePending: false,
     onToggleSaved: jest.fn(),
@@ -54,20 +57,25 @@ test("shows artwork, track metadata, elapsed time, duration, and accessible cont
   expect(screen.getByRole("button", { name: /next track/i })).toBeEnabled();
   expect(screen.getByRole("button", { name: /save neon nights to spotify/i })).toBeEnabled();
   expect(screen.getByRole("slider", { name: /playback position/i })).toHaveAttribute("aria-valuetext", "1:05 of 3:05");
+  expect(screen.getByRole("slider", { name: /playback volume/i })).toHaveAttribute("aria-valuetext", "65% volume");
 });
 
-test("routes transport and seek actions to the existing player", () => {
+test("routes transport, seek, and committed volume actions to the existing player", async () => {
   const props = renderPlayer();
 
   fireEvent.click(screen.getByRole("button", { name: /previous track/i }));
   fireEvent.click(screen.getByRole("button", { name: /pause neon nights/i }));
   fireEvent.click(screen.getByRole("button", { name: /next track/i }));
   fireEvent.change(screen.getByRole("slider", { name: /playback position/i }), { target: { value: "90000" } });
+  const volume = screen.getByRole("slider", { name: /playback volume/i });
+  fireEvent.change(volume, { target: { value: "35" } });
+  fireEvent.pointerUp(volume);
 
   expect(props.onPrevious).toHaveBeenCalledTimes(1);
   expect(props.onTogglePlay).toHaveBeenCalledTimes(1);
   expect(props.onNext).toHaveBeenCalledTimes(1);
   expect(props.onSeek).toHaveBeenCalledWith(90000);
+  await waitFor(() => expect(props.onVolumeChange).toHaveBeenCalledWith(0.35));
 });
 
 test("saves and removes the current track independently of playback availability", () => {

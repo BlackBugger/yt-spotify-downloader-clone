@@ -203,6 +203,14 @@ export default function Home() {
   const playbackIsPlaying = isRemotePlayback ? remotePlayback.isPlaying : player.isPlaying;
   const playbackPosition = isRemotePlayback ? remotePlayback.position : player.position;
   const playbackDuration = isRemotePlayback ? remotePlayback.duration : player.duration;
+  const activePlaybackDevice = playbackDevices.items.find((device) => device.id === playbackTargetId);
+  const remoteVolume = Number(activePlaybackDevice?.volume_percent);
+  const playbackVolume = isRemotePlayback && Number.isFinite(remoteVolume)
+    ? remoteVolume / 100
+    : Number(player.volume ?? 1);
+  const playbackVolumeAvailable = isRemotePlayback
+    ? activePlaybackDevice?.supports_volume !== false
+    : Boolean(player.deviceId);
   const nowPlayingId = nowPlaying?.id || "";
   const lyricsTrackName = nowPlaying?.name?.trim() || "";
   const lyricsArtist = (nowPlaying?.artists || []).map((artist) => artist.name).filter(Boolean).join(", ");
@@ -601,6 +609,38 @@ export default function Home() {
     }
   }
 
+  async function changePlaybackVolume(nextVolume) {
+    const targetId = playbackTargetId || player.deviceId;
+    if (!targetId) return false;
+    const normalizedVolume = Math.min(Math.max(Number(nextVolume) || 0, 0), 1);
+    if (targetId === player.deviceId) {
+      return player.setVolume?.(normalizedVolume) ?? false;
+    }
+    if (activePlaybackDevice?.supports_volume === false) {
+      setNotice("That Spotify device does not support remote volume changes.");
+      return false;
+    }
+    const volumePercent = Math.round(normalizedVolume * 100);
+    try {
+      const response = await spotifyRequest(
+        `https://api.spotify.com/v1/me/player/volume?volume_percent=${volumePercent}&device_id=${encodeURIComponent(targetId)}`,
+        { method: "PUT" },
+      );
+      if (!response.ok) throw new Error();
+      setPlaybackDevices((current) => ({
+        ...current,
+        items: current.items.map((device) => (
+          device.id === targetId ? { ...device, volume_percent: volumePercent } : device
+        )),
+      }));
+      setNotice("");
+      return true;
+    } catch {
+      setNotice("Spotify could not change the volume on that device.");
+      return false;
+    }
+  }
+
   function openLyrics() {
     const panel = document.getElementById("spotify-lyrics");
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
@@ -659,10 +699,13 @@ export default function Home() {
       error={isRemotePlayback ? "" : playerNotice}
       position={playbackPosition}
       duration={playbackDuration}
+      volume={playbackVolume}
+      volumeAvailable={playbackVolumeAvailable}
       onTogglePlay={togglePlayerPlayback}
       onPrevious={() => skipRemote("previous")}
       onNext={() => skipRemote("next")}
       onSeek={seekPlayback}
+      onVolumeChange={changePlaybackVolume}
       saved={Boolean(nowPlayingId && saved[nowPlayingId])}
       savePending={Boolean(nowPlayingId && savePending[nowPlayingId])}
       onToggleSaved={toggleSaved}

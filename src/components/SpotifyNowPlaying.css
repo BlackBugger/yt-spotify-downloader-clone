@@ -8,7 +8,7 @@
   display: grid;
   grid-template-columns: minmax(190px, 1fr) minmax(270px, 1.25fr) minmax(160px, 0.72fr);
   grid-template-areas:
-    "meta transport state"
+    "meta transport volume"
     "meta timeline state";
   gap: 9px 22px;
   align-items: center;
@@ -184,6 +184,7 @@
 
 .spotify-player-transport button:focus-visible,
 .spotify-player-timeline input:focus-visible,
+.spotify-player-volume input:focus-visible,
 .spotify-device-picker button:focus-visible {
   outline: 3px solid rgba(122, 255, 169, 0.48);
   outline-offset: 3px;
@@ -436,6 +437,66 @@
   opacity: 0.45;
 }
 
+.spotify-player-volume {
+  display: grid;
+  grid-area: volume;
+  grid-template-columns: 18px minmax(60px, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  color: #aeb6b0;
+}
+
+.spotify-player-volume > svg {
+  font-size: 15px;
+}
+
+.spotify-player-volume span {
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  text-align: right;
+}
+
+.spotify-player-volume input {
+  width: 100%;
+  height: 4px;
+  margin: 0;
+  border-radius: 99px;
+  outline: none;
+  appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--player-neon) 0,
+    var(--player-neon) var(--player-volume),
+    #454b47 var(--player-volume),
+    #454b47 100%
+  );
+  cursor: pointer;
+}
+
+.spotify-player-volume input::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #0d120f;
+  border-radius: 50%;
+  appearance: none;
+  background: #ecfff2;
+  box-shadow: 0 0 0 3px rgba(30, 215, 96, 0.22);
+}
+
+.spotify-player-volume input::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 2px solid #0d120f;
+  border-radius: 50%;
+  background: #ecfff2;
+  box-shadow: 0 0 0 3px rgba(30, 215, 96, 0.22);
+}
+
+.spotify-player-volume input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .spotify-player-state {
   display: grid;
   grid-area: state;
@@ -476,7 +537,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "meta transport"
-      "timeline timeline"
+      "timeline volume"
       "state state";
     gap: 9px 14px;
     min-height: 118px;
@@ -499,6 +560,11 @@
     max-width: none;
     text-align: left;
   }
+
+  .spotify-player-volume {
+    width: min(180px, 100%);
+    justify-self: end;
+  }
 }
 
 @media (max-width: 420px) {
@@ -509,10 +575,11 @@
       "meta"
       "transport"
       "timeline"
+      "volume"
       "state";
     gap: 8px;
     width: calc(100% - 20px);
-    min-height: 180px;
+    min-height: 214px;
     padding: 12px 14px;
     border-radius: 18px;
   }
@@ -565,6 +632,11 @@
 
   .spotify-player-state {
     justify-items: center;
+  }
+
+  .spotify-player-volume {
+    width: 100%;
+    justify-self: stretch;
   }
 
   .spotify-player-state span {

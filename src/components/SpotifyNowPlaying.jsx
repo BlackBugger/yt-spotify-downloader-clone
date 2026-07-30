@@ -10,6 +10,7 @@ import {
   FiSkipBack,
   FiSkipForward,
   FiSpeaker,
+  FiVolume2,
   FiX,
 } from "react-icons/fi";
 import "./SpotifyNowPlaying.css";
@@ -36,6 +37,9 @@ export default function SpotifyNowPlaying({
   onPrevious,
   onNext,
   onSeek,
+  volume = 1,
+  volumeAvailable = true,
+  onVolumeChange,
   saved,
   savePending,
   onToggleSaved,
@@ -52,8 +56,12 @@ export default function SpotifyNowPlaying({
   const [displayPosition, setDisplayPosition] = useState(position || 0);
   const [artworkFailed, setArtworkFailed] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
+  const [displayVolume, setDisplayVolume] = useState(
+    Math.round(clamp(Number(volume) || 0, 0, 1) * 100)
+  );
   const deviceButtonRef = useRef(null);
   const devicePickerRef = useRef(null);
+  const committedVolumeRef = useRef(displayVolume);
   const trackDuration = Number(duration || track?.duration_ms || 0);
   const artwork = track?.album?.images?.[0]?.url || "";
   const artists = useMemo(
@@ -68,6 +76,12 @@ export default function SpotifyNowPlaying({
   useEffect(() => {
     setArtworkFailed(false);
   }, [artwork]);
+
+  useEffect(() => {
+    const nextVolume = Math.round(clamp(Number(volume) || 0, 0, 1) * 100);
+    setDisplayVolume(nextVolume);
+    committedVolumeRef.current = nextVolume;
+  }, [volume, isRemoteDevice]);
 
   useEffect(() => {
     if (!isPlaying || !track || !trackDuration) return undefined;
@@ -110,6 +124,7 @@ export default function SpotifyNowPlaying({
     ? `${isPlaying ? "Pause" : "Play"} ${track.name}`
     : "Play Spotify";
   const canSave = Boolean(track?.id && onToggleSaved);
+  const canAdjustVolume = Boolean(isReady && volumeAvailable && onVolumeChange);
   const saveLabel = !track
     ? "Save to Spotify"
     : savePending
@@ -122,6 +137,19 @@ export default function SpotifyNowPlaying({
     const nextPosition = Number(event.target.value);
     setDisplayPosition(nextPosition);
     onSeek?.(nextPosition);
+  };
+
+  const commitVolume = async (value) => {
+    if (!canAdjustVolume) return;
+    const nextVolume = Math.round(clamp(Number(value) || 0, 0, 100));
+    if (nextVolume === committedVolumeRef.current) return;
+    const previousVolume = committedVolumeRef.current;
+    committedVolumeRef.current = nextVolume;
+    const changed = await onVolumeChange(nextVolume / 100);
+    if (changed === false) {
+      committedVolumeRef.current = previousVolume;
+      setDisplayVolume(previousVolume);
+    }
   };
 
   const toggleDevices = () => {
@@ -305,6 +333,26 @@ export default function SpotifyNowPlaying({
           style={{ "--player-progress": `${progress}%` }}
         />
         <span aria-hidden="true">{total}</span>
+      </div>
+
+      <div className="spotify-player-volume">
+        <FiVolume2 aria-hidden="true" />
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={displayVolume}
+          onChange={(event) => setDisplayVolume(Number(event.target.value))}
+          onPointerUp={(event) => commitVolume(event.currentTarget.value)}
+          onKeyUp={(event) => commitVolume(event.currentTarget.value)}
+          onBlur={(event) => commitVolume(event.currentTarget.value)}
+          disabled={!canAdjustVolume}
+          aria-label="Playback volume"
+          aria-valuetext={`${displayVolume}% volume`}
+          style={{ "--player-volume": `${displayVolume}%` }}
+        />
+        <span aria-hidden="true">{displayVolume}%</span>
       </div>
 
       <div className="spotify-player-state">

@@ -14,11 +14,13 @@ function Harness({ token, onReady }) {
     <span data-testid="track">{state.playerState?.track_window?.current_track?.name || ""}</span>
     <span data-testid="error">{state.error}</span>
     <span data-testid="error-type">{state.errorType}</span>
+    <span data-testid="volume">{state.volume}</span>
     <button onClick={state.togglePlay}>toggle</button>
     <button onClick={state.activateElement}>activate</button>
     <button onClick={state.previousTrack}>previous</button>
     <button onClick={state.nextTrack}>next</button>
     <button onClick={() => state.seek(42000)}>seek</button>
+    <button onClick={() => state.setVolume(0.35)}>volume</button>
   </>;
 }
 
@@ -33,6 +35,8 @@ beforeEach(() => {
     previousTrack: jest.fn(() => Promise.resolve()),
     nextTrack: jest.fn(() => Promise.resolve()),
     seek: jest.fn(() => Promise.resolve()),
+    getVolume: jest.fn(() => Promise.resolve(0.65)),
+    setVolume: jest.fn(() => Promise.resolve()),
   };
   window.Spotify = { Player: jest.fn(() => player) };
   window.onSpotifyWebPlaybackSDKReady = undefined;
@@ -49,8 +53,12 @@ test("creates one SDK device, exposes ready state, updates player state, and dis
   const { unmount } = render(<Harness token="in-memory-token" onReady={onReady} />);
   await act(async () => { await Promise.resolve(); });
   expect(window.Spotify.Player).toHaveBeenCalledWith(expect.objectContaining({ name: "Cruz Audio", getOAuthToken: expect.any(Function) }));
-  await act(async () => { handlers.ready({ device_id: "cruz-device" }); });
+  await act(async () => {
+    handlers.ready({ device_id: "cruz-device" });
+    await Promise.resolve();
+  });
   expect(screen.getByTestId("device")).toHaveTextContent("cruz-device");
+  expect(screen.getByTestId("volume")).toHaveTextContent("0.65");
   expect(onReady).toHaveBeenCalledWith("cruz-device");
   await act(async () => { handlers.player_state_changed({ paused: false, track_window: { current_track: { name: "Track", artists: [{ name: "Artist" }] } } }); });
   expect(screen.getByTestId("playing")).toHaveTextContent("true");
@@ -112,6 +120,22 @@ test("controls the existing player for previous, next, and seek", async () => {
   expect(player.previousTrack).toHaveBeenCalledTimes(1);
   expect(player.nextTrack).toHaveBeenCalledTimes(1);
   expect(player.seek).toHaveBeenCalledWith(42000);
+  expect(window.Spotify.Player).toHaveBeenCalledTimes(1);
+});
+
+test("sets the existing browser player's volume without recreating it", async () => {
+  render(<Harness token="in-memory-token" onReady={jest.fn()} />);
+  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    handlers.ready({ device_id: "cruz-device" });
+    await Promise.resolve();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "volume" }));
+  await act(async () => { await Promise.resolve(); });
+
+  expect(player.setVolume).toHaveBeenCalledWith(0.35);
+  expect(screen.getByTestId("volume")).toHaveTextContent("0.35");
   expect(window.Spotify.Player).toHaveBeenCalledTimes(1);
 });
 
