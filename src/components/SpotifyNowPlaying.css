@@ -129,6 +129,29 @@
   font-size: 19px;
 }
 
+.spotify-player-transport .spotify-player-save {
+  width: 36px;
+  height: 36px;
+  margin-left: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.spotify-player-transport .spotify-player-save[aria-pressed="true"] {
+  border-color: rgba(82, 239, 137, 0.42);
+  background: var(--player-neon-soft);
+  box-shadow: 0 0 18px rgba(30, 215, 96, 0.12);
+  color: #62ee94;
+}
+
+.spotify-player-transport .spotify-player-save[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+
+.spotify-player-transport .spotify-player-save[aria-busy="true"] svg {
+  opacity: 0.55;
+}
+
 .spotify-player-transport button:disabled {
   cursor: not-allowed;
   opacity: 0.38;

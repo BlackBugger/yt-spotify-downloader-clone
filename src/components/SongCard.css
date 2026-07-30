@@ -90,15 +90,15 @@
 
 .track-action {
   display: inline-flex;
-  gap: 7px;
   align-items: center;
   justify-content: center;
-  min-width: 102px;
+  width: 42px;
+  min-width: 42px;
   min-height: 42px;
-  padding: 0 13px;
+  padding: 0;
   border-radius: 10px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 700;
   transition:
     transform 160ms ease,
@@ -121,9 +121,10 @@
   color: #dfdce5;
 }
 
-.icon-action {
-  min-width: 42px;
-  padding: 0;
+.track-action.save-action[aria-pressed="true"] {
+  border-color: rgba(112, 224, 170, 0.5);
+  background: rgba(112, 224, 170, 0.12);
+  color: #70e0aa;
 }
 
 .track-action.secondary:hover:not(:disabled) {
@@ -132,12 +133,15 @@
 }
 
 .track-action.primary {
-  background: #f4f1ee;
-  color: #111116;
+  border: 1px solid rgba(255, 117, 95, 0.58);
+  background: rgba(255, 102, 84, 0.16);
+  color: #ff9b89;
 }
 
 .track-action.primary:hover:not(:disabled) {
-  background: #fff;
+  border-color: #ff8d78;
+  background: rgba(255, 102, 84, 0.24);
+  color: #ffd2c9;
 }
 
 .spin {
@@ -156,21 +160,13 @@
   }
 
   .track-actions {
-    display: grid;
     grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    justify-content: flex-end;
     width: 100%;
-  }
-
-  .track-actions.connected {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .track-action {
-    width: 100%;
-    min-width: 0;
-    padding: 0 7px;
-    gap: 4px;
+    width: 42px;
+    min-width: 42px;
   }
 }

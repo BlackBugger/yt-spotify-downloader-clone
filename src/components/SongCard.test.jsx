@@ -58,3 +58,26 @@ test("replaces broken track artwork with the music fallback", () => {
   expect(container.querySelector(".track-art img")).not.toBeInTheDocument();
   expect(container.querySelector(".track-art svg")).toBeInTheDocument();
 });
+
+test("uses four consistently sized icon actions in connected mode", () => {
+  render(
+    <SongCard
+      track={track}
+      connected
+      onPlay={jest.fn()}
+      onToggleSaved={jest.fn()}
+    />,
+  );
+
+  const actions = [
+    screen.getByRole("button", { name: "Play Responsive Track" }),
+    screen.getByRole("button", { name: "Save Responsive Track" }),
+    screen.getByRole("button", { name: "Open Responsive Track on YouTube" }),
+    screen.getByRole("button", { name: "Download Responsive Track as MP3" }),
+  ];
+
+  actions.forEach((action) => {
+    expect(action).toHaveClass("track-action");
+    expect(action).toHaveTextContent("");
+  });
+});

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FiArrowUpRight, FiDownload, FiHeart, FiLoader, FiMusic, FiPlay } from "react-icons/fi";
+import { FiDownload, FiHeart, FiLoader, FiMusic, FiPlay, FiYoutube } from "react-icons/fi";
 import "./SongCard.css";
 
 async function responseData(response) {
@@ -63,9 +63,9 @@ export default function SongCard({ track, onPlay, onToggleSaved, saved = false, 
     <div className="track-art">{artwork && !artworkFailed ? <img src={artwork} alt="" loading="lazy" onError={() => setArtworkFailed(true)} /> : <FiMusic />}</div>
     <div className="track-copy"><h3>{title}</h3><p>{artist}</p><span>{track.album?.name}</span>{actionError && <small role="alert">{actionError}</small>}</div>
     <div className={`track-actions ${connected ? "connected" : ""}`}>
-      {connected && <><button type="button" className="track-action secondary" aria-label={`Play ${title}`} onClick={() => runAction("play", () => onPlay(track))} disabled={isBusy}><FiPlay /><span>Play</span></button><button type="button" className="track-action secondary icon-action" aria-label={`${saved ? "Remove" : "Save"} ${title}`} aria-pressed={saved} onClick={() => runAction("save", () => onToggleSaved(track))} disabled={isBusy}>{activeAction === "save" ? <FiLoader className="spin" /> : <FiHeart fill={saved ? "currentColor" : "none"} />}<span>{saved ? "Remove" : "Save"}</span></button></>}
-      <button type="button" className="track-action secondary" onClick={openYoutube} disabled={isBusy} aria-label={`Open ${title} on YouTube`}>{activeAction === "youtube" ? <FiLoader className="spin" /> : <FiArrowUpRight />}<span>YouTube</span></button>
-      <button type="button" className="track-action primary" onClick={downloadTrack} disabled={isBusy} aria-label={`Download ${title} as MP3`}>{activeAction === "download" ? <FiLoader className="spin" /> : <FiDownload />}<span>MP3</span></button>
+      {connected && <><button type="button" className="track-action secondary" aria-label={`Play ${title}`} title={`Play ${title}`} onClick={() => runAction("play", () => onPlay(track))} disabled={isBusy}><FiPlay /></button><button type="button" className="track-action secondary save-action" aria-label={`${saved ? "Remove" : "Save"} ${title}`} title={`${saved ? "Remove" : "Save"} ${title}`} aria-pressed={saved} onClick={() => runAction("save", () => onToggleSaved(track))} disabled={isBusy}>{activeAction === "save" ? <FiLoader className="spin" /> : <FiHeart fill={saved ? "currentColor" : "none"} />}</button></>}
+      <button type="button" className="track-action secondary youtube-action" onClick={openYoutube} disabled={isBusy} aria-label={`Open ${title} on YouTube`} title={`Open ${title} on YouTube`}>{activeAction === "youtube" ? <FiLoader className="spin" /> : <FiYoutube />}</button>
+      <button type="button" className="track-action primary" onClick={downloadTrack} disabled={isBusy} aria-label={`Download ${title} as MP3`} title={`Download ${title} as MP3`}>{activeAction === "download" ? <FiLoader className="spin" /> : <FiDownload />}</button>
     </div>
   </article>;
 }

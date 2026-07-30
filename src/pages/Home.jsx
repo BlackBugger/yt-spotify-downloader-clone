@@ -57,6 +57,7 @@ export default function Home() {
   const [token, setToken] = useState("");
   const [expiresIn, setExpiresIn] = useState(0);
   const [saved, setSaved] = useState({});
+  const [savePending, setSavePending] = useState({});
   const [library, setLibrary] = useState({ tab: "playlists", items: [], loading: false, error: "" });
   const [notice, setNotice] = useState("");
   const [playerNotice, setPlayerNotice] = useState("");
@@ -97,7 +98,10 @@ export default function Home() {
       setToken("");
       setExpiresIn(0);
       savedRef.current = {};
+      savedMutationVersionRef.current = {};
+      savePendingRef.current = {};
       setSaved({});
+      setSavePending({});
       selectedLibraryTabRef.current = "playlists";
       libraryRequestRef.current += 1;
       savedStatusRequestRef.current += 1;
@@ -154,6 +158,8 @@ export default function Home() {
 
   const playerReady = useCallback(() => undefined, []);
   const player = useSpotifyPlayer(token, playerReady);
+  const nowPlaying = player.playerState?.track_window?.current_track;
+  const nowPlayingId = nowPlaying?.id || "";
   useEffect(() => { savedRef.current = saved; }, [saved]);
   useEffect(() => {
     if (!player.error) {
@@ -173,8 +179,9 @@ export default function Home() {
   }, [player.error, player.errorType, refreshSession]);
 
   useEffect(() => {
-    if (!token || tracks.length === 0) return undefined;
-    const ids = tracks.map((track) => track.id).filter(Boolean);
+    if (!token) return undefined;
+    const ids = [...new Set([...tracks.map((track) => track.id), nowPlayingId].filter(Boolean))];
+    if (ids.length === 0) return undefined;
     const requestId = ++savedStatusRequestRef.current;
     const versions = Object.fromEntries(ids.map((id) => [id, savedMutationVersionRef.current[id] || 0]));
     spotifyRequest(`https://api.spotify.com/v1/me/tracks/contains?ids=${encodeURIComponent(ids.join(","))}`)
@@ -197,7 +204,7 @@ export default function Home() {
         if (requestId === savedStatusRequestRef.current) setNotice("Saved-track status could not be loaded.");
       });
     return () => { if (requestId === savedStatusRequestRef.current) savedStatusRequestRef.current += 1; };
-  }, [spotifyRequest, token, tracks]);
+  }, [nowPlayingId, spotifyRequest, token, tracks]);
 
   const loadLibrary = useCallback(async (tab) => {
     if (!token) return;
@@ -261,6 +268,7 @@ export default function Home() {
     const id = track.id;
     if (!id || !token || savePendingRef.current[id]) return;
     savePendingRef.current[id] = true;
+    setSavePending((current) => ({ ...current, [id]: true }));
     const previous = Boolean(savedRef.current[id]);
     const mutationVersion = (savedMutationVersionRef.current[id] || 0) + 1;
     savedMutationVersionRef.current[id] = mutationVersion;
@@ -287,6 +295,11 @@ export default function Home() {
       return false;
     } finally {
       delete savePendingRef.current[id];
+      setSavePending((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   }
 
@@ -323,15 +336,16 @@ export default function Home() {
   }
 
   const resultStatus = loading ? "Searching the catalog" : searchFailed ? "Catalog search failed" : searched ? `${tracks.length} tracks found` : "Ready to search";
-  const nowPlaying = player.playerState?.track_window?.current_track;
   return <div className={`home-page ${account ? "has-spotify-player" : ""}`}>
     <Header account={account} catalogStatus={catalogStatus} onLibrary={loadLibrary} onLogout={logout} />
     {notice && <p className="account-notice" role="alert">{notice}</p>}
     <main>
-      <section className="hero"><div className="hero-content"><div className="eyebrow"><span>Search</span><FiArrowRight /><span>Match</span><FiArrowRight /><span>Listen</span></div><h1>Your next listen,<span> one search away.</span></h1><p className="hero-copy">Find a track in Spotify&apos;s catalog, jump to its closest YouTube match, or save the audio for later.</p>
-        <div className="search-shell"><form onSubmit={submit} className="cruz-search"><label htmlFor="track-search">What do you want to hear?</label><div className="search-control"><FiSearch className="search-icon" /><input id="track-search" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setError(""); }} aria-describedby={error ? "search-error" : "search-hint"} placeholder="Song, artist, or album" /><button type="submit" disabled={loading}><span>{loading ? "Searching" : "Find tracks"}</span><FiArrowRight /></button></div>{error ? <p className="search-message error" id="search-error" role="alert">{error}</p> : <p className="search-message" id="search-hint">Try a song title and artist for the closest match.</p>}</form><div className="popular-searches"><span>Popular now</span><div>{popularSearches.map((item) => <button type="button" key={item} onClick={() => { setQuery(item); submit(null, item); }}>{item}</button>)}</div></div></div>
-        <div className="hero-proof"><span><FiCheck /> Spotify catalog search</span><span><FiCheck /> YouTube source match</span><span><FiCheck /> No account required</span></div></div></section>
-      {account && <SpotifyLibrary account={account} library={library} saved={saved} onLoad={loadLibrary} onPlay={playSpotifyItem} onToggleSaved={toggleSaved} />}
+      <section className={`hero ${searched ? "is-collapsed" : ""}`}><div className="hero-content">
+        {searched
+          ? <div className="collapsed-search-heading"><span className="section-label">Search</span><h1>Find another track.</h1></div>
+          : <><div className="eyebrow"><span>Search</span><FiArrowRight /><span>Match</span><FiArrowRight /><span>Listen</span></div><h1>Your next listen,<span> one search away.</span></h1><p className="hero-copy">Find a track in Spotify&apos;s catalog, jump to its closest YouTube match, or save the audio for later.</p></>}
+        <div className="search-shell"><form onSubmit={submit} className="cruz-search"><label htmlFor="track-search">What do you want to hear?</label><div className="search-control"><FiSearch className="search-icon" /><input id="track-search" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setError(""); }} aria-describedby={error ? "search-error" : "search-hint"} placeholder="Song, artist, or album" /><button type="submit" disabled={loading}><span>{loading ? "Searching" : "Find tracks"}</span><FiArrowRight /></button></div>{error ? <p className="search-message error" id="search-error" role="alert">{error}</p> : <p className="search-message" id="search-hint">Try a song title and artist for the closest match.</p>}</form>{!searched && <div className="popular-searches"><span>Popular now</span><div>{popularSearches.map((item) => <button type="button" key={item} onClick={() => { setQuery(item); submit(null, item); }}>{item}</button>)}</div></div>}</div>
+        {!searched && <div className="hero-proof"><span><FiCheck /> Spotify catalog search</span><span><FiCheck /> YouTube source match</span><span><FiCheck /> No account required</span></div>}</div></section>
       <section className={`content-section ${searched ? "has-results" : ""}`} aria-label="Search results" aria-busy={loading}>
         <p className="sr-only" role="status" aria-label="Search status">{resultStatus}</p>
         {loading ? (
@@ -354,6 +368,7 @@ export default function Home() {
           </div>
         )}
       </section>
+      {account && <SpotifyLibrary account={account} library={library} saved={saved} onLoad={loadLibrary} onPlay={playSpotifyItem} onToggleSaved={toggleSaved} />}
     </main>
     {account && <SpotifyNowPlaying
       track={nowPlaying}
@@ -366,6 +381,9 @@ export default function Home() {
       onPrevious={player.previousTrack}
       onNext={player.nextTrack}
       onSeek={player.seek}
+      saved={Boolean(nowPlayingId && saved[nowPlayingId])}
+      savePending={Boolean(nowPlayingId && savePending[nowPlayingId])}
+      onToggleSaved={toggleSaved}
     />}
     <footer><div><span className="footer-brand">CRUZ / AUDIO</span><p>Built for faster music discovery.</p></div><p className="legal-copy">Please respect creators and only download content you&apos;re authorized to use.</p></footer>
   </div>;

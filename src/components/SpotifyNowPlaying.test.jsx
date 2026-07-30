@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import SpotifyNowPlaying from "./SpotifyNowPlaying";
 
 const track = {
+  id: "neon-nights",
   name: "Neon Nights",
   artists: [{ name: "Cruz" }, { name: "Audio" }],
   album: { images: [{ url: "https://images.example/cover.jpg" }] },
@@ -20,10 +21,13 @@ function renderPlayer(overrides = {}) {
     onPrevious: jest.fn(),
     onNext: jest.fn(),
     onSeek: jest.fn(),
+    saved: false,
+    savePending: false,
+    onToggleSaved: jest.fn(),
     ...overrides,
   };
-  render(<SpotifyNowPlaying {...props} />);
-  return props;
+  const rendered = render(<SpotifyNowPlaying {...props} />);
+  return { ...props, rerender: rendered.rerender };
 }
 
 test("shows artwork, track metadata, elapsed time, duration, and accessible controls", () => {
@@ -38,6 +42,7 @@ test("shows artwork, track metadata, elapsed time, duration, and accessible cont
   expect(screen.getByRole("button", { name: /pause neon nights/i })).toBeEnabled();
   expect(screen.getByRole("button", { name: /previous track/i })).toBeEnabled();
   expect(screen.getByRole("button", { name: /next track/i })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /save neon nights to spotify/i })).toBeEnabled();
   expect(screen.getByRole("slider", { name: /playback position/i })).toHaveAttribute("aria-valuetext", "1:05 of 3:05");
 });
 
@@ -55,6 +60,33 @@ test("routes transport and seek actions to the existing player", () => {
   expect(props.onSeek).toHaveBeenCalledWith(90000);
 });
 
+test("saves and removes the current track independently of playback availability", () => {
+  const props = renderPlayer({ isReady: false });
+  const saveButton = screen.getByRole("button", { name: /save neon nights to spotify/i });
+
+  expect(saveButton).toBeEnabled();
+  expect(saveButton).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(saveButton);
+  expect(props.onToggleSaved).toHaveBeenCalledWith(track);
+
+  props.rerender(
+    <SpotifyNowPlaying
+      {...props}
+      saved
+    />
+  );
+  expect(screen.getByRole("button", { name: /remove neon nights from saved tracks/i })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("locks the heart control while a save mutation is pending", () => {
+  renderPlayer({ saved: true, savePending: true });
+
+  const saveButton = screen.getByRole("button", { name: /updating neon nights in spotify/i });
+  expect(saveButton).toBeDisabled();
+  expect(saveButton).toHaveAttribute("aria-busy", "true");
+  expect(saveButton).toHaveAttribute("aria-pressed", "true");
+});
+
 test("stays useful while connected but idle and communicates unavailable playback", () => {
   renderPlayer({
     track: null,
@@ -69,4 +101,5 @@ test("stays useful while connected but idle and communicates unavailable playbac
   expect(screen.getByRole("alert")).toHaveTextContent("Spotify Premium");
   expect(screen.getByRole("button", { name: /play spotify/i })).toBeDisabled();
   expect(screen.getByRole("slider", { name: /playback position/i })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /save to spotify/i })).toBeDisabled();
 });

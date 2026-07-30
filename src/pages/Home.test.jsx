@@ -84,6 +84,52 @@ test("searches the public Netlify catalog function and renders twelve results", 
   expect(screen.getByRole("status", { name: /catalog status: online/i })).toBeInTheDocument();
 });
 
+test("collapses the hero and places connected search results before the Library", async () => {
+  const containsResponse = deferred();
+  fetch.mockImplementation((url) => {
+    if (url === "/.netlify/functions/spotify-session") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          authenticated: true,
+          accessToken: "short-lived",
+          expiresIn: 3600,
+          profile: { display_name: "Cruz", images: [] },
+        }),
+      });
+    }
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
+      return Promise.resolve({ ok: true, json: async () => ({ items: [] }) });
+    }
+    if (url === "/.netlify/functions/catalog-search?q=SZA") {
+      return Promise.resolve({ ok: true, json: async () => ({ tracks: [tracks[0]] }) });
+    }
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) {
+      return containsResponse.promise;
+    }
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("No playlists to show yet.");
+  fireEvent.change(screen.getByLabelText(/what do you want to hear/i), { target: { value: "SZA" } });
+  fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
+
+  await screen.findByText("Track 1");
+  await act(async () => {
+    containsResponse.resolve({ ok: true, json: async () => [false] });
+    await containsResponse.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  const results = screen.getByRole("region", { name: /search results/i });
+  const library = screen.getByRole("region", { name: /spotify library/i });
+
+  expect(screen.queryByRole("heading", { name: /your next listen/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Find another track." })).toBeInTheDocument();
+  expect(results.compareDocumentPosition(library) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 test("reports a public search error in its dedicated status region", async () => {
   fetch.mockResolvedValueOnce(unauthenticated).mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Catalog is unavailable." }) });
   render(<Home />);
@@ -336,6 +382,9 @@ test("clears only the player notice after the SDK reports healthy playback", asy
     if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
       return playlistResponse.promise;
     }
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) {
+      return Promise.resolve({ ok: true, json: async () => [false] });
+    }
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
 
@@ -364,6 +413,64 @@ test("clears only the player notice after the SDK reports healthy playback", asy
     await Promise.resolve();
     await Promise.resolve();
   });
+});
+
+test("updates the current track from the bottom player heart control", async () => {
+  const playlistResponse = deferred();
+  const containsResponse = deferred();
+  const saveResponse = deferred();
+  mockSpotifyPlayer.playerState = {
+    paused: true,
+    track_window: { current_track: tracks[0] },
+  };
+  fetch.mockImplementation((url, options = {}) => {
+    if (url === "/.netlify/functions/spotify-session") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          authenticated: true,
+          accessToken: "short-lived",
+          expiresIn: 3600,
+          profile: { display_name: "Cruz", images: [] },
+        }),
+      });
+    }
+    if (url === "https://api.spotify.com/v1/me/playlists?limit=20") {
+      return playlistResponse.promise;
+    }
+    if (url.startsWith("https://api.spotify.com/v1/me/tracks/contains")) {
+      return containsResponse.promise;
+    }
+    if (url.includes("/v1/me/tracks?ids=track-0") && options.method === "DELETE") {
+      return saveResponse.promise;
+    }
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+
+  render(<Home />);
+  await screen.findByText("Cruz");
+  await act(async () => {
+    playlistResponse.resolve({ ok: true, json: async () => ({ items: [] }) });
+    containsResponse.resolve({ ok: true, json: async () => [true] });
+    await playlistResponse.promise;
+    await containsResponse.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  const removeButton = await screen.findByRole("button", { name: /remove track 1 from saved tracks/i });
+  fireEvent.click(removeButton);
+
+  expect(screen.getByRole("button", { name: /updating track 1 in spotify/i })).toBeDisabled();
+  await act(async () => {
+    saveResponse.resolve({ ok: true, status: 200 });
+    await saveResponse.promise;
+    await Promise.resolve();
+  });
+  expect(await screen.findByRole("button", { name: /save track 1 to spotify/i })).toBeInTheDocument();
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/v1/me/tracks?ids=track-0"),
+    expect.objectContaining({ method: "DELETE" }),
+  ));
 });
 
 test("rolls back a failed heart action and shows the error visibly", async () => {
@@ -627,7 +734,9 @@ test("keeps the newest public search when an older request resolves late", async
 
   render(<Home />);
   fireEvent.click(screen.getByRole("button", { name: "SZA" }));
-  fireEvent.click(screen.getByRole("button", { name: "Drake" }));
+  const search = screen.getByLabelText(/what do you want to hear/i);
+  fireEvent.change(search, { target: { value: "Drake" } });
+  fireEvent.submit(search.closest("form"));
 
   await act(async () => {
     secondSearch.resolve({ ok: true, json: async () => ({ tracks: [drakeTrack] }) });

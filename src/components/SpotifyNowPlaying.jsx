@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiDisc, FiPause, FiPlay, FiSkipBack, FiSkipForward } from "react-icons/fi";
+import { FiDisc, FiHeart, FiPause, FiPlay, FiSkipBack, FiSkipForward } from "react-icons/fi";
 import "./SpotifyNowPlaying.css";
 
 function clamp(value, minimum, maximum) {
@@ -24,6 +24,9 @@ export default function SpotifyNowPlaying({
   onPrevious,
   onNext,
   onSeek,
+  saved,
+  savePending,
+  onToggleSaved,
 }) {
   const [displayPosition, setDisplayPosition] = useState(position || 0);
   const [artworkFailed, setArtworkFailed] = useState(false);
@@ -57,6 +60,14 @@ export default function SpotifyNowPlaying({
   const playLabel = track
     ? `${isPlaying ? "Pause" : "Play"} ${track.name}`
     : "Play Spotify";
+  const canSave = Boolean(track?.id && onToggleSaved);
+  const saveLabel = !track
+    ? "Save to Spotify"
+    : savePending
+      ? `Updating ${track.name} in Spotify`
+      : saved
+        ? `Remove ${track.name} from saved tracks`
+        : `Save ${track.name} to Spotify`;
 
   const seek = (event) => {
     const nextPosition = Number(event.target.value);
@@ -95,6 +106,17 @@ export default function SpotifyNowPlaying({
         </button>
         <button type="button" onClick={onNext} disabled={!canControl} aria-label="Next track">
           <FiSkipForward aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="spotify-player-save"
+          onClick={() => onToggleSaved?.(track)}
+          disabled={!canSave || savePending}
+          aria-label={saveLabel}
+          aria-pressed={Boolean(saved)}
+          aria-busy={savePending ? "true" : undefined}
+        >
+          <FiHeart aria-hidden="true" />
         </button>
       </div>
 
