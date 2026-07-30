@@ -25,6 +25,7 @@ export default function SpotifyLyrics({
   const [displayPosition, setDisplayPosition] = useState(position);
   const [follow, setFollow] = useState(true);
   const activeLineRef = useRef(null);
+  const lyricsViewportRef = useRef(null);
   const artwork = track?.album?.images?.[0]?.url || "";
   const artists = useMemo(
     () => (track?.artists || []).map((artist) => artist.name).filter(Boolean).join(", "),
@@ -62,9 +63,13 @@ export default function SpotifyLyrics({
   useEffect(() => {
     if (!follow || activeIndex < 0) return;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    activeLineRef.current?.scrollIntoView?.({
+    const viewport = lyricsViewportRef.current;
+    const line = activeLineRef.current;
+    if (!viewport || !line) return;
+    const nextTop = line.offsetTop - viewport.clientHeight / 2 + line.offsetHeight / 2;
+    viewport.scrollTo?.({
+      top: Math.max(0, nextTop),
       behavior: reduceMotion ? "auto" : "smooth",
-      block: "center",
     });
   }, [activeIndex, follow]);
 
@@ -132,7 +137,11 @@ export default function SpotifyLyrics({
             <span>No sung lyrics—just let it play.</span>
           </div>
         ) : lines.length > 0 ? (
-          <div className="spotify-lyrics-lines" aria-label="Synchronized lyrics">
+          <div
+            className="spotify-lyrics-lines"
+            aria-label="Synchronized lyrics"
+            ref={lyricsViewportRef}
+          >
             {lines.map((line, index) => {
               const active = index === activeIndex;
               return (

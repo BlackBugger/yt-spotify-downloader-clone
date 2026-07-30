@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SpotifyLyrics from "./SpotifyLyrics";
 
 const track = {
@@ -60,6 +60,42 @@ test("offers follow control and renders untimed lyrics without fake seek buttons
   expect(screen.getByText("A quiet verse")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /seek to/i })).not.toBeInTheDocument();
   expect(screen.getByText(/these lyrics are not time-synced/i)).toBeInTheDocument();
+});
+
+test("auto-follow scrolls only the lyric viewport instead of moving the page", async () => {
+  const viewportScroll = jest.fn();
+  const pageScroll = jest.fn();
+  const originalScrollTo = HTMLElement.prototype.scrollTo;
+  const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+  HTMLElement.prototype.scrollTo = viewportScroll;
+  HTMLElement.prototype.scrollIntoView = pageScroll;
+  try {
+    render(
+      <SpotifyLyrics
+        track={track}
+        isPlaying={false}
+        position={6500}
+        duration={180000}
+        lyrics={{
+          lines: [
+            { time: 1000, text: "First glow" },
+            { time: 6000, text: "Second glow" },
+          ],
+          plainLines: [],
+          loading: false,
+          error: "",
+          instrumental: false,
+          source: "LRCLIB",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(viewportScroll).toHaveBeenCalled());
+    expect(pageScroll).not.toHaveBeenCalled();
+  } finally {
+    HTMLElement.prototype.scrollTo = originalScrollTo;
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  }
 });
 
 test("keeps loading and unavailable messages inside the dedicated lyrics region", () => {
