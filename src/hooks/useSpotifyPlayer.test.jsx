@@ -52,7 +52,7 @@ test("creates one SDK device, exposes ready state, updates player state, and dis
   const onReady = jest.fn();
   const { unmount } = render(<Harness token="in-memory-token" onReady={onReady} />);
   await act(async () => { await Promise.resolve(); });
-  expect(window.Spotify.Player).toHaveBeenCalledWith(expect.objectContaining({ name: "Cruz Audio", getOAuthToken: expect.any(Function) }));
+  expect(window.Spotify.Player).toHaveBeenCalledWith(expect.objectContaining({ name: "Tunevera", getOAuthToken: expect.any(Function) }));
   await act(async () => {
     handlers.ready({ device_id: "cruz-device" });
     await Promise.resolve();

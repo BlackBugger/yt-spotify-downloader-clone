@@ -1,12 +1,13 @@
-# Cruz Audio implementation handoff
+# Tunevera implementation handoff
 
-**Last reconciled by Codex:** 2026-07-30
+**Last reconciled by Codex:** 2026-07-31
 **Repository:** `BlackBugger/yt-spotify-downloader-clone`
 **Local checkout:** `D:/AI-Projects/yt-spotify-downloader-clone`
 **Branch:** `agent/cruz-ui-refresh-20260724`
 **Draft PR:** https://github.com/BlackBugger/yt-spotify-downloader-clone/pull/1
+**Working staging site:** https://tunevera.netlify.app/
 **Deploy Preview:** https://deploy-preview-1--cruz-yt-mp3.netlify.app/
-**Production:** https://cruz-yt-mp3.netlify.app/
+**Legacy production:** https://cruz-yt-mp3.netlify.app/
 
 Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment state override this document if they diverge.
 
@@ -22,7 +23,7 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 
 ## Product contract
 
-Cruz Audio has two independent modes:
+Tunevera has two independent modes:
 
 1. Public mode requires no account and preserves search → YouTube match → authorized MP3 conversion.
 2. Spotify account mode adds login/logout, profile, playlists, saved albums and tracks, save/remove controls, and eligible Spotify Premium browser playback.

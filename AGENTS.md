@@ -1,10 +1,10 @@
-# Cruz Audio agent instructions
+# Tunevera agent instructions
 
 These instructions apply to the entire repository. Read `docs/CODEX_HANDOFF.md` for the live PR state before reviewing or editing.
 
 ## Product boundary
 
-Cruz Audio has two independent modes:
+Tunevera has two independent modes:
 
 - **Public mode:** no login required; search Spotify's catalog, inspect the closest YouTube match, and request an MP3 only for content the user is authorized to download.
 - **Spotify account mode:** login, profile, playlists, saved albums/tracks, heart/save/remove controls, and in-browser Spotify playback when the account is eligible.
@@ -13,7 +13,7 @@ Do not make public search/download depend on Spotify login. Preserve the complet
 
 ## Design direction
 
-Preserve the current Cruz Audio visual language unless Harold explicitly requests a redesign:
+Preserve the current Tunevera visual language unless Harold explicitly requests a redesign:
 
 - premium dark, music-focused interface;
 - restrained coral-to-lavender accents;

@@ -1,6 +1,6 @@
-# Cruz Audio
+# Tunevera
 
-Cruz Audio supports public Spotify catalog search without a Spotify account. Optional Spotify account mode adds profile/library/save controls and requests in-browser playback through Spotify Web Playback SDK-compatible access tokens. In-browser Spotify playback requires Spotify Premium; library and save features remain available if playback cannot be transferred.
+Tunevera supports public Spotify catalog search without a Spotify account. Optional Spotify account mode adds profile/library/save controls and requests in-browser playback through Spotify Web Playback SDK-compatible access tokens. In-browser Spotify playback requires Spotify Premium; library and save features remain available if playback cannot be transferred.
 
 ## Netlify environment
 

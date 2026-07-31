@@ -186,7 +186,7 @@ test("lyrics lookup sends an exact track signature to LRCLIB with client identif
       search: expect.stringContaining("track_name=Neon+Sky"),
     }),
     expect.objectContaining({
-      headers: expect.objectContaining({ "User-Agent": expect.stringContaining("CruzAudio") }),
+      headers: expect.objectContaining({ "User-Agent": expect.stringContaining("Tunevera") }),
       signal: expect.any(Object),
     }),
   );

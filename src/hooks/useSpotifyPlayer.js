@@ -65,7 +65,7 @@ export function useSpotifyPlayer(accessToken, onReady) {
     loadSpotifySdk().then((Spotify) => {
       if (!active || !Spotify?.Player) return;
       const player = new Spotify.Player({
-        name: "Cruz Audio",
+        name: "Tunevera",
         getOAuthToken: (callback) => callback(tokenRef.current),
       });
       playerRef.current = player;

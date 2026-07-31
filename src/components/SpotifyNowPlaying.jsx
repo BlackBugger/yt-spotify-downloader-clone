@@ -177,7 +177,7 @@ export default function SpotifyNowPlaying({
       </div>
 
       <div className="spotify-player-meta">
-        <span className="spotify-player-kicker">{track ? "Now playing" : "Cruz player"}</span>
+        <span className="spotify-player-kicker">{track ? "Now playing" : "Tunevera player"}</span>
         <strong>{track?.name || "Ready when you are"}</strong>
         <span>{artists || "Choose a track from search or your library."}</span>
       </div>

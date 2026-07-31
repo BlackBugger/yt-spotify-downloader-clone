@@ -56,7 +56,7 @@
 
 .brand {
   display: inline-flex;
-  gap: 7px;
+  gap: 10px;
   align-items: center;
   color: var(--ink);
   font-family: var(--font-display);
@@ -70,48 +70,18 @@
   color: var(--ink);
 }
 
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: 31px;
-  height: 31px;
-  margin-right: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.05);
+.brand-logo {
+  width: 44px;
+  height: 32px;
+  object-fit: contain;
 }
 
-.brand-mark span {
-  width: 2px;
-  border-radius: 99px;
-  background: linear-gradient(to top, var(--accent), #ffb199);
-}
-
-.brand-mark span:nth-child(1) {
-  height: 7px;
-}
-
-.brand-mark span:nth-child(2) {
-  height: 15px;
-}
-
-.brand-mark span:nth-child(3) {
-  height: 11px;
-}
-
-.brand-mark span:nth-child(4) {
-  height: 5px;
-}
-
-.brand-divider,
-.brand-product {
-  color: #918f99;
-}
-
-.brand-product {
-  font-weight: 600;
+.brand-name {
+  background: linear-gradient(100deg, #fff 16%, #ffc1b8 54%, #c8b3ff 100%);
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .catalog-status {
@@ -903,9 +873,15 @@
     font-size: 11px;
   }
 
-  .brand-divider,
-  .brand-product {
-    display: none;
+  .brand {
+    gap: 6px;
+    font-size: 12px;
+    letter-spacing: 0.11em;
+  }
+
+  .brand-logo {
+    width: 34px;
+    height: 26px;
   }
 
   .catalog-status {

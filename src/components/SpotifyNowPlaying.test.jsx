@@ -28,7 +28,7 @@ function renderPlayer(overrides = {}) {
     savePending: false,
     onToggleSaved: jest.fn(),
     devices: [
-      { id: "browser-device", name: "Cruz Audio", type: "Computer", is_active: true, is_restricted: false },
+      { id: "browser-device", name: "Tunevera", type: "Computer", is_active: true, is_restricted: false },
       { id: "living-room", name: "Living Room TV", type: "TV", is_active: false, is_restricted: false },
       { id: "restricted-device", name: "Restricted speaker", type: "Speaker", is_active: false, is_restricted: true },
     ],
@@ -129,7 +129,7 @@ test("loads available devices and transfers playback from an accessible picker",
 
   expect(props.onRequestDevices).toHaveBeenCalledTimes(1);
   expect(screen.getByRole("dialog", { name: /playback devices/i })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /cruz audio.*active device/i })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /tunevera.*active device/i })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByRole("button", { name: /restricted speaker.*unavailable/i })).toBeDisabled();
 
   fireEvent.click(screen.getByRole("button", { name: /living room tv/i }));

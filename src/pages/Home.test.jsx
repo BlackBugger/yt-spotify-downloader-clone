@@ -69,6 +69,13 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
+test("renders the Tunevera wordmark and generated logo", async () => {
+  await act(async () => { render(<Home />); await Promise.resolve(); });
+  const brand = screen.getByRole("link", { name: /tunevera home/i });
+  expect(brand).toHaveTextContent("TUNEVERA");
+  expect(brand.querySelector("img")).toHaveAttribute("src", expect.stringContaining("tunevera-logo"));
+});
+
 test("validates an empty public search without a catalog request", async () => {
   await act(async () => { render(<Home />); await Promise.resolve(); });
   fireEvent.click(screen.getByRole("button", { name: /find tracks/i }));
@@ -693,7 +700,7 @@ test("lists Spotify devices and transfers playback from the bottom player", asyn
       ok: true,
       json: async () => ({
         devices: [
-          { id: "browser-device", name: "Cruz Audio", type: "Computer", is_active: true, is_restricted: false, volume_percent: 80, supports_volume: true },
+          { id: "browser-device", name: "Tunevera", type: "Computer", is_active: true, is_restricted: false, volume_percent: 80, supports_volume: true },
           { id: "living-room", name: "Living Room TV", type: "TV", is_active: false, is_restricted: false, volume_percent: 35, supports_volume: true },
         ],
       }),

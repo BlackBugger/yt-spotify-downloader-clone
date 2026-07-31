@@ -5,6 +5,7 @@ import SpotifyLibrary from "../components/SpotifyLibrary";
 import SpotifyLyrics from "../components/SpotifyLyrics";
 import SpotifyNowPlaying from "../components/SpotifyNowPlaying";
 import { spotifyUserRequest } from "../api/spotifyUserRequest";
+import tuneveraLogo from "../assets/tunevera-logo.png";
 import { useSpotifyPlayer } from "../hooks/useSpotifyPlayer";
 import { parseSyncedLyrics, splitPlainLyrics } from "../utils/lyrics";
 import "./Home.css";
@@ -47,7 +48,10 @@ function Header({ account, catalogStatus, onLibrary, onLogout }) {
     panel?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
   return <header className="site-header">
-    <a className="brand" href="/" aria-label="Cruz Audio home"><span className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></span><span>CRUZ</span><span className="brand-divider">/</span><span className="brand-product">AUDIO</span></a>
+    <a className="brand" href="/" aria-label="Tunevera home">
+      <img className="brand-logo" src={tuneveraLogo} alt="" />
+      <span className="brand-name">TUNEVERA</span>
+    </a>
     <div className={`header-controls ${account ? "connected" : "public"}`}>
       {account ? <><button className="header-button" onClick={openLibrary}>Library</button>{account.images?.[0]?.url && <img className="header-avatar" src={account.images[0].url} alt="" />}<span className="profile-name">{account.display_name || account.id}</span><button className="header-button" onClick={onLogout}>Disconnect</button></> : <button className="header-button connect" onClick={() => window.location.assign("/.netlify/functions/spotify-login")}>Connect Spotify</button>}
       <span className="catalog-status" role="status" aria-label={`Catalog status: ${catalogLabel.toLowerCase()}`}><span className={`status-dot ${catalogStatus}`} aria-hidden="true" /><span className="catalog-prefix">Catalog </span>{catalogLabel}</span>
@@ -520,7 +524,7 @@ export default function Home() {
   async function playSpotifyItem(item) {
     const targetId = playbackTargetId || player.deviceId;
     if (targetId && targetId === player.deviceId) await player.activateElement?.();
-    if (!targetId) { setNotice("Cruz Audio is connecting a Spotify device. Spotify Premium is required for in-browser playback."); return; }
+    if (!targetId) { setNotice("Tunevera is connecting a Spotify device. Spotify Premium is required for in-browser playback."); return; }
     try {
       const playback = item.type === "track" ? { uris: [item.uri] } : { context_uri: item.uri };
       const response = await spotifyRequest(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(targetId)}`, {
@@ -719,6 +723,6 @@ export default function Home() {
       activeDeviceName={playbackDevices.items.find((device) => device.id === playbackTargetId)?.name}
       isRemoteDevice={isRemotePlayback}
     />}
-    <footer><div><span className="footer-brand">CRUZ / AUDIO</span><p>Built for faster music discovery.</p></div><p className="legal-copy">Please respect creators and only download content you&apos;re authorized to use.</p></footer>
+    <footer><div><span className="footer-brand">TUNEVERA</span><p>Built for faster music discovery.</p></div><p className="legal-copy">Please respect creators and only download content you&apos;re authorized to use.</p></footer>
   </div>;
 }

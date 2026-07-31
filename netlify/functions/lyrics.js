@@ -152,7 +152,7 @@ exports.handler = async (event) => {
   if (cached) return lyricsResponse(cached);
 
   const providerHeaders = {
-    "User-Agent": "CruzAudio/0.1.0 (https://cruz-yt-mp3.netlify.app)",
+    "User-Agent": "Tunevera/0.1.0 (https://tunevera.netlify.app)",
   };
   const searchUrl = new URL("https://lrclib.net/api/search");
   searchUrl.search = new URLSearchParams({
