@@ -19,7 +19,9 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 - Codex committed and pushed the accessible bottom-player volume slider in `d7d631bdd057d6b40161ac5af676254c20aca3e6`. GitHub's Netlify check succeeded, and the Deploy Preview bundle was verified to contain both the visible volume control and targeted Spotify Connect volume handling.
 - Netlify built interactive-lyrics implementation `c471ecbed246694a9686ee3aeaba0578a4591fd4` successfully, and Codex verified the resulting Deploy Preview in a real connected browser session.
 - Codex pushed lyrics reliability commits `90446b9385878b2e22a31a4d9067860c43186968` and `c2b2864000d0d4c359065c49ccd6856184319bbe`. Netlify's Deploy Preview checks succeeded.
-- PR #1 remains a draft. Nothing has been merged to `main` or deployed to production.
+- Codex rebranded the public product as Tunevera in `13e6626`, added generated transparent logo and browser-icon assets, pushed the branch, and published the exact build to the separate `tunevera` Netlify staging site (deploy `6a6cbfb7c21c40809a8b8fb2`).
+- The Spotify Developer application is named Tunevera, uses `https://tunevera.netlify.app/` as its website, and has the exact Tunevera callback registered. A live OAuth round trip returned to the staging site and restored the connected account session.
+- PR #1 remains a draft. Nothing has been merged to `main`, and the legacy `cruz-yt-mp3.netlify.app` production site was not modified.
 
 ## Product contract
 
@@ -62,9 +64,9 @@ Tunevera has two independent modes:
 - Result cards use four equal icon-only actions with accessible labels and native tooltips; connected mode keeps them in one aligned row at exactly 390px.
 - Retired legacy dashboard components remain unreachable from the active route.
 
-## Validation observed on 2026-07-30
+## Validation observed on 2026-07-31
 
-- Complete Jest suite: 10 suites, 85 tests passed, clean output.
+- Complete Jest suite after the Tunevera rebrand: 10 suites, 89 tests passed, clean output.
 - Local volume-control regression after the deployed-preview validation: 10 suites, 86 tests passed, clean output.
 - Lyrics concurrency and cache regression: 10 suites, 88 tests passed, clean output.
 - Production CRA build: compiled successfully. Only Node's existing `fs.F_OK` deprecation advisory was emitted.
@@ -91,6 +93,8 @@ Tunevera has two independent modes:
 - Browser and remote-output volume routing, rollback, percentage state, and single-player preservation were verified through regression tests rather than changing the owner's real Spotify volume.
 - Auto-follow remained anchored with the Lyrics section 24px from the viewport top while the active line advanced; only the internal lyric list scrolled.
 - The live empty-search error remained available, and browser diagnostics contained no console warnings or errors after search, playback, lyrics loading, seeking, follow toggling, and responsive checks.
+- Tunevera staging returned HTTP 200 with the Tunevera title and generated logo, while the public catalog function returned 12 tracks for the live verification query.
+- Public and authenticated header checks at the 390px browser override showed no horizontal overflow. Spotify OAuth accepted the Tunevera callback, returned to the app, and exposed Library and Disconnect controls without console errors.
 
 ## Remaining release gates
 
