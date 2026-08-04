@@ -1,163 +1,71 @@
-/* eslint-disable */
-import axios from "axios";
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import SpotifyWebApi from "spotify-web-api-node";
-import { yTdApi } from "../api/api";
-import download from '../assets/download.svg'
-import youtube from '../assets/youtube.png'
-import { setPlayTrack } from "../redux/reducers";
-import './SongCard.css'
+import React, { useState } from "react";
+import { FiDownload, FiHeart, FiLoader, FiMusic, FiPlay, FiYoutube } from "react-icons/fi";
+import "./SongCard.css";
 
-const SongCard = (track) => {
-
-    const [searchThis, setSearchThis] = useState([]);
-    const [likeID, setLikeID] = useState('');
-    const [downloadLink, setDownloadLink] = useState('');
-
-
-
-    const dispatch = useDispatch();
-
-
-    function handlePlay(track) {
-        dispatch((setPlayTrack(track)))
-    }
-
-    const downloadthis = async (event) => {
-        event.preventDefault();
-
-        console.log(searchThis)
-        var name = searchThis.name;
-        var artist = searchThis.artist;
-        var searchYT = `${name} by ${artist}`
-
-        const trackName = searchYT;
-
-        const KEY = process.env.REACT_APP_YOUTUBE_API_KEY;
-
-        const fetchAPI = await fetch(`https://youtube.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=` + trackName + "&key=" + KEY, {
-        })
-
-        const data = await fetchAPI.json();
-        console.log('this is data', data.items[0].id.videoId);
-
-
-        const response = await yTdApi.get(`dl?id=${data.items[0].id.videoId}`)
-
-        const dlLink = response.data.link;
-        setDownloadLink(dlLink);
-        console.log('inside downloadbutton', dlLink);
-
-        window.open(dlLink, "_self")
-
-    }
-
-    const youtubeLink = async (event) => {
-        event.preventDefault();
-
-        console.log(searchThis)
-        var name = searchThis.name;
-        var artist = searchThis.artist;
-        var searchYT = `${name} by ${artist}`
-
-        const trackName = searchYT;
-
-        const KEY = process.env.REACT_APP_YOUTUBE_API_KEY;
-
-        const fetchAPI = await fetch(`https://youtube.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=` + trackName + "&key=" + KEY, {
-
-        })
-        const data = await fetchAPI.json();
-        console.log('this is data', data.items[0].id.videoId);
-        window.open(`https://www.youtube.com/watch?v=${data.items[0].id.videoId}`)
-    }
-
-    const { accessToken } = useSelector((state) => state.accessToken);
-
-    const spotifyApi = new SpotifyWebApi({
-        clientId: process.env.REACT_APP_ClientID,
-        accessToken: accessToken,
-    });
-
-    const [test, setTest] = useState(false);
-
-
-
-    spotifyApi.containsMySavedTracks([track.id])
-        .then(function (data) {
-            var trackIsInYourMusic = data.body[0];
-
-            if (trackIsInYourMusic) {
-                setTest(trackIsInYourMusic)
-            } else {
-                setTest(false)
-            }
-        }, function (err) {
-            console.log('Something went wrong!', err);
-        });
-
-
-    const like = async (event) => {
-        event.preventDefault();
-
-        if (test === true) {
-            spotifyApi.removeFromMySavedTracks([likeID])
-                .then(function (data) {
-                    console.log('Removed!');
-                }, function (err) {
-                    console.log('Something went wrong!', err);
-                });
-            setTest(false)
-        } else {
-            spotifyApi.addToMySavedTracks([likeID])
-                .then(function (data) {
-                    console.log('Added track!');
-                }, function (err) {
-                    console.log('Something went wrong!', err);
-                });
-            setTest(true)
-        }
-    }
-
-    return (
-        <>
-            <div className="track" key={track.id} >
-                <div className="track-info">
-                    <div className="track-image" onClick={() => handlePlay(track.uri)}>
-                        <img src={track.image} />
-                    </div>
-                    <div className="track-title">
-                        <h3>{track.title}</h3>
-                        <p>{track.artist}</p>
-                    </div>
-                </div>
-                <div className="download">
-                    {/* Like button for spotify */}
-                    {/* <form onSubmit={like} className="">
-                        <button onClick={() => setLikeID(track.id)}>
-                            {test ? <img src='https://cdn-icons-png.flaticon.com/512/1077/1077086.png' alt='liked' /> : <img src='https://cdn-icons-png.flaticon.com/512/1077/1077035.png' alt='like' />}
-                        </button>
-                    </form> */}
-                    <form onSubmit={youtubeLink} className="" >
-                        <button onClick={() => setSearchThis({ name: track.title, artist: track.artist })} >
-                            <img src={youtube} alt="youtube" />
-                        </button>
-                    </form>
-
-                    <form onSubmit={downloadthis} className="" >
-                        <button onClick={() => setSearchThis({ name: track.title, artist: track.artist })} >
-                            <a><img src={download} alt="search" /></a>
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-
-        </>
-
-    );
-
+async function responseData(response) {
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "That action could not be completed.");
+  return data;
 }
 
-export default SongCard;
+export default function SongCard({ track, onPlay, onToggleSaved, saved = false, connected = false }) {
+  const [activeAction, setActiveAction] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [artworkFailed, setArtworkFailed] = useState(false);
+  const title = track.name;
+  const artist = track.artists.map((item) => item.name).join(", ");
+  const artwork = track.album?.images?.[0]?.url;
+  const isBusy = Boolean(activeAction);
+
+  async function matchVideo() {
+    const query = encodeURIComponent(`${title} ${artist}`);
+    return responseData(await fetch(`/.netlify/functions/youtube-match?q=${query}`));
+  }
+
+  async function runAction(name, action) {
+    setActionError("");
+    setActiveAction(name);
+    try { await action(); }
+    catch (actionFailure) { setActionError(actionFailure.message || "That action could not be completed."); }
+    finally { setActiveAction(""); }
+  }
+
+  function openYoutube() {
+    const popup = window.open("about:blank", "_blank");
+    if (popup) popup.opener = null;
+    return runAction("youtube", async () => {
+      try {
+        const { youtubeUrl } = await matchVideo();
+        if (!youtubeUrl) throw new Error("No YouTube match was found.");
+        if (popup) popup.location.replace(youtubeUrl);
+        else window.location.assign(youtubeUrl);
+      } catch (matchError) {
+        popup?.close();
+        throw matchError;
+      }
+    });
+  }
+
+  function downloadTrack() {
+    return runAction("download", async () => {
+      const { videoId, conversionGrant } = await matchVideo();
+      const data = await responseData(await fetch("/.netlify/functions/convert-mp3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId, conversionGrant }),
+      }));
+      if (!data.downloadUrl) throw new Error("The download is not ready. Try again.");
+      window.location.assign(data.downloadUrl);
+    });
+  }
+
+  return <article className="track-card">
+    <div className="track-art">{artwork && !artworkFailed ? <img src={artwork} alt="" loading="lazy" onError={() => setArtworkFailed(true)} /> : <FiMusic />}</div>
+    <div className="track-copy"><h3>{title}</h3><p>{artist}</p><span>{track.album?.name}</span>{actionError && <small role="alert">{actionError}</small>}</div>
+    <div className={`track-actions ${connected ? "connected" : ""}`}>
+      {connected && <><button type="button" className="track-action secondary" aria-label={`Play ${title}`} title={`Play ${title}`} onClick={() => runAction("play", () => onPlay(track))} disabled={isBusy}><FiPlay /></button><button type="button" className="track-action secondary save-action" aria-label={`${saved ? "Remove" : "Save"} ${title}`} title={`${saved ? "Remove" : "Save"} ${title}`} aria-pressed={saved} onClick={() => runAction("save", () => onToggleSaved(track))} disabled={isBusy}>{activeAction === "save" ? <FiLoader className="spin" /> : <FiHeart fill={saved ? "currentColor" : "none"} />}</button></>}
+      <button type="button" className="track-action secondary youtube-action" onClick={openYoutube} disabled={isBusy} aria-label={`Open ${title} on YouTube`} title={`Open ${title} on YouTube`}>{activeAction === "youtube" ? <FiLoader className="spin" /> : <FiYoutube />}</button>
+      <button type="button" className="track-action primary" onClick={downloadTrack} disabled={isBusy} aria-label={`Download ${title} as MP3`} title={`Download ${title} as MP3`}>{activeAction === "download" ? <FiLoader className="spin" /> : <FiDownload />}</button>
+    </div>
+  </article>;
+}

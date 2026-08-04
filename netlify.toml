@@ -1,0 +1,4 @@
+[build]
+  functions = "netlify/functions"
+
+# Register every production and preview callback URL used for testing in Spotify Developer Dashboard.
