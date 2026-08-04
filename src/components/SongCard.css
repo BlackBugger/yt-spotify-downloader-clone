@@ -166,7 +166,8 @@
   }
 
   .track-action {
-    width: 42px;
-    min-width: 42px;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
