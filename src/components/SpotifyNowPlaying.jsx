@@ -209,15 +209,15 @@ export default function SpotifyNowPlaying({
         >
           <FiHeart aria-hidden="true" />
         </button>
-        <button
+        {onOpenLyrics && <button
           type="button"
           className="spotify-player-lyrics"
           onClick={onOpenLyrics}
-          disabled={!track || !onOpenLyrics}
+          disabled={!track}
           aria-label={track ? `Open lyrics for ${track.name}` : "Open lyrics"}
         >
           <FiMic aria-hidden="true" />
-        </button>
+        </button>}
         <button
           type="button"
           className="spotify-player-device"

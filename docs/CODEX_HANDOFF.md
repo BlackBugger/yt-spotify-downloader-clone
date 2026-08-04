@@ -21,6 +21,7 @@ Read `AGENTS.md` before using this handoff. Live code, Git state, and deployment
 - Codex pushed lyrics reliability commits `90446b9385878b2e22a31a4d9067860c43186968` and `c2b2864000d0d4c359065c49ccd6856184319bbe`. Netlify's Deploy Preview checks succeeded.
 - Codex rebranded the public product as Tunevera in `13e6626`, added generated transparent logo and browser-icon assets, pushed the branch, and published the exact build to the separate `tunevera` Netlify staging site (deploy `6a6cbfb7c21c40809a8b8fb2`).
 - The Spotify Developer application is named Tunevera, uses `https://tunevera.netlify.app/` as its website, and has the exact Tunevera callback registered. A live OAuth round trip returned to the staging site and restored the connected account session.
+- On 2026-08-04 the Lyrics experience was archived at the owner's request because provider reliability was not acceptable. The UI, player shortcut, and automatic lyrics requests are disabled behind `LYRICS_ENABLED`; the implementation remains in source for a future provider-backed restoration.
 - PR #1 remains a draft. Nothing has been merged to `main`, and the legacy `cruz-yt-mp3.netlify.app` production site was not modified.
 
 ## Product contract

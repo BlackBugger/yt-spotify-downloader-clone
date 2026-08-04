@@ -2,6 +2,8 @@
 
 Tunevera supports public Spotify catalog search without a Spotify account. Optional Spotify account mode adds profile/library/save controls and requests in-browser playback through Spotify Web Playback SDK-compatible access tokens. In-browser Spotify playback requires Spotify Premium; library and save features remain available if playback cannot be transferred.
 
+> **Current product note:** The Lyrics interface is archived for now while a more dependable provider path is evaluated. The player shortcut and automatic lyrics requests are disabled; the implementation remains available in source for later restoration.
+
 ## Netlify environment
 
 Set these server-side Netlify variables only:

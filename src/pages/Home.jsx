@@ -12,6 +12,9 @@ import "./Home.css";
 
 const popularSearches = ["SZA", "Bad Bunny", "Drake", "Tame Impala"];
 const REFRESH_EARLY_MS = 30_000;
+// Archived until a dependable lyrics provider is selected. Keeping the implementation
+// in place makes the feature easy to restore without exposing a broken experience.
+const LYRICS_ENABLED = false;
 const libraryEndpoints = { playlists: "me/playlists?limit=20", albums: "me/albums?limit=20", tracks: "me/tracks?limit=20" };
 const emptyLyrics = {
   trackId: "",
@@ -221,7 +224,8 @@ export default function Home() {
   const lyricsAlbum = nowPlaying?.album?.name?.trim() || "";
   const lyricsDurationSeconds = Math.round(Number(playbackDuration || nowPlaying?.duration_ms || 0) / 1000);
   const lyricsAvailable = Boolean(
-    account
+    LYRICS_ENABLED
+    && account
     && nowPlayingId
     && lyricsTrackName
     && lyricsArtist
@@ -685,7 +689,7 @@ export default function Home() {
           </div>
         )}
       </section>
-      {lyricsAvailable && <SpotifyLyrics
+      {LYRICS_ENABLED && lyricsAvailable && <SpotifyLyrics
         track={nowPlaying}
         isPlaying={playbackIsPlaying}
         position={playbackPosition}
@@ -713,7 +717,7 @@ export default function Home() {
       saved={Boolean(nowPlayingId && saved[nowPlayingId])}
       savePending={Boolean(nowPlayingId && savePending[nowPlayingId])}
       onToggleSaved={toggleSaved}
-      onOpenLyrics={lyricsAvailable ? openLyrics : undefined}
+      onOpenLyrics={LYRICS_ENABLED && lyricsAvailable ? openLyrics : undefined}
       devices={playbackDevices.items}
       devicesLoading={playbackDevices.loading}
       deviceTransferring={playbackDevices.transferring}
